@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>webgame</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --card: #1b2033;
+      --ink: #f4f6fb;
+      --muted: #a8b0c7;
+      --accent: #ffb703;
+      --line: #2c334d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 420px at 10% -10%, #243056, transparent 60%),
+        radial-gradient(700px 380px at 100% 0%, #3a2a12, transparent 55%),
+        var(--bg);
+    }
+    main { max-width: 880px; margin: 0 auto; padding: 48px 20px 72px; }
+    h1 { margin: 0 0 8px; font-size: 40px; letter-spacing: 0.04em; }
+    p.lead { margin: 0 0 28px; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    a.card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      min-height: 160px;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    a.card:hover { transform: translateY(-3px); border-color: var(--accent); }
+    .emoji { font-size: 34px; }
+    h2 { margin: 12px 0 6px; font-size: 22px; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.5; }
+    footer { margin-top: 28px; color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>webgame</h1>
+    <p class="lead">ブラウザですぐ遊べるゲーム集。どれかを選んでね。</p>
+    <div class="grid">
+      <a class="card" href="games/snake/">
+        <div class="emoji">🐍</div>
+        <h2>スネーク</h2>
+        <p>エサを集めて、長くなった自分に当たらないように進む。</p>
+      </a>
+      <a class="card" href="games/memory/">
+        <div class="emoji">🃏</div>
+        <h2>神経衰弱</h2>
+        <p>めくった2枚が同じ絵ならゲット。全部そろえよう。</p>
+      </a>
+      <a class="card" href="games/2048/">
+        <div class="emoji">🔢</div>
+        <h2>2048</h2>
+        <p>同じ数字のタイルをくっつけて、2048 を目指す。</p>
+      </a>
+      <a class="card" href="games/tic-tac-toe/">
+        <div class="emoji">⭕</div>
+        <h2>まるばつ</h2>
+        <p>コンピュータと三目並べ。3つ並べたら勝ち。</p>
+      </a>
+    </div>
+    <footer>キーボードとマウス、スマホのタップでも遊べます。</footer>
+  </main>
+</body>
+</html>
