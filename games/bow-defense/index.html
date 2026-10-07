@@ -27,6 +27,7 @@
     <div>
       <button id="up-bow" type="button">弓を強化</button>
       <button id="up-arrow" type="button">矢を強化</button>
+      <button id="path" type="button">軌道を表示</button>
       <button id="again" type="button">はじめから</button>
       <a href="../../index.html">もどる</a>
     </div>
@@ -42,8 +43,8 @@
     let w = 1, h = 1, dpr = 1;
     let pointer = {x: 0, y: 0};
     let bolts = [], enemies = [], shots = [], pops = [], coins = [];
-    let loaded = false, drawing = false, power = 0, aim = 0, aimLocked = false;
-    let pullStart = {x: 0, y: 0, aim: 0};
+    let loaded = false, drawing = false, power = 0, aim = 0;
+    let showPath = localStorage.getItem("bow-path") === "1";
     let purse = 0, castle = 12, wave = 1, spawnLeft = 0, spawnTimer = 0, restock = 0;
     let bowLv = 0, arrowLv = 0;
     let state = "play", drag = null, coinDrag = null;
@@ -70,11 +71,38 @@
     function bagPos() { return {x: 86, y: h - 96}; }
     function aimAtFinger() {
       const b = bowPos();
-      const dx = pointer.x - pullStart.x;
-      const dy = pointer.y - pullStart.y;
-      if (!aimLocked && dy > 48 && dy > Math.abs(dx) * 1.2) aimLocked = true;
-      if (!aimLocked) aim = Math.max(-0.85, Math.min(0.85, pullStart.aim + dx / 340));
-      if (aimLocked) power = Math.max(0, Math.min(1, (dy - 20) / 150));
+      const dx = pointer.x - b.x;
+      const dy = pointer.y - b.y;
+      const dist = Math.hypot(dx, dy);
+      power = Math.max(0, Math.min(1, (dy - 24) / 140));
+      if (dist < 78) return;
+      const target = Math.atan2(dx, -dy);
+      const influence = Math.min(1, (dist - 78) / 220);
+      let delta = target - aim;
+      while (delta > Math.PI) delta -= Math.PI * 2;
+      while (delta < -Math.PI) delta += Math.PI * 2;
+      aim += delta * influence;
+    }
+    function shotSpeed() {
+      return (540 + bowLv * 120) + power * (720 + bowLv * 80);
+    }
+    function trajectory() {
+      const b = bowPos();
+      const ang = -Math.PI / 2 + aim;
+      const speed = shotSpeed() || (540 + bowLv * 120);
+      let x = b.x + Math.cos(ang) * 50;
+      let y = b.y + Math.sin(ang) * 50;
+      let vx = Math.cos(ang) * speed;
+      let vy = Math.sin(ang) * speed;
+      const pts = [{x, y}];
+      for (let i = 0; i < 36; i++) {
+        x += vx * 0.045;
+        y += vy * 0.045;
+        vy += 240 * 0.045;
+        pts.push({x, y});
+        if (y > h - 20 || x < -20 || x > w + 20) break;
+      }
+      return pts;
     }
     function pathPoints() {
       const top = 78;
@@ -123,7 +151,7 @@
     function reset() {
       bolts = Array.from({length: 6}, (_, i) => ({id: i + 1}));
       enemies = []; shots = []; pops = []; coins = [];
-      loaded = false; drawing = false; power = 0; aim = 0; aimLocked = false; drag = null; coinDrag = null;
+      loaded = false; drawing = false; power = 0; aim = 0; drag = null; coinDrag = null;
       purse = 0; castle = 12; wave = 1; bowLv = 0; arrowLv = 0;
       spawnLeft = 7; spawnTimer = 0.7; restock = 0; state = "play";
       sync();
@@ -139,11 +167,8 @@
       scoreEl.textContent = purse;
       hpEl.textContent = castle;
       costText();
-      hintEl.textContent = coinDrag
-        ? "コインを左下の袋まで運んで離す。"
-        : loaded
-        ? "先に左右へスライドして照準。向きが決まったら下へ引いて離す。"
-        : "右の矢をクロスボウへ。照準は弓を左右にスライド。";
+      document.getElementById("path").textContent = showPath ? "軌道を消す" : "軌道を表示";
+      hintEl.textContent = "弓の近くでは向きはあまり変わらない。離すほどねらえる。下に引いて離すと発射。";
     }
     function buy(kind) {
       const costs = kind === "bow" ? bowCosts : arrowCosts;
@@ -190,9 +215,7 @@
       if (drag && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 150) return;
       if (!drag && !coinDrag && loaded && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 170) {
         drawing = true;
-        aimLocked = false;
         power = 0;
-        pullStart = {x: pointer.x, y: pointer.y, aim};
         ev.preventDefault();
       }
     }
@@ -233,16 +256,15 @@
         if (onBow) loadFromDrag();
         else sync();
       } else if (drawing) {
-        if (aimLocked && power > 0.28) fire();
+        if (power > 0.22) fire();
         drawing = false;
-        aimLocked = false;
         power = 0;
       }
     }
     function fire() {
       const b = bowPos();
       const ang = -Math.PI / 2 + aim;
-      const speed = (540 + bowLv * 120) + power * (720 + bowLv * 80);
+      const speed = shotSpeed();
       shots.push({
         x: b.x + Math.cos(ang) * 50,
         y: b.y + Math.sin(ang) * 50,
@@ -261,6 +283,11 @@
     document.getElementById("again").onclick = reset;
     document.getElementById("up-bow").onclick = () => buy("bow");
     document.getElementById("up-arrow").onclick = () => buy("arrow");
+    document.getElementById("path").onclick = () => {
+      showPath = !showPath;
+      localStorage.setItem("bow-path", showPath ? "1" : "0");
+      sync();
+    };
     window.addEventListener("resize", resize);
 
     let last = performance.now();
@@ -369,14 +396,23 @@
         ctx.fillRect(b.x - 16, b.y - 20, 32, 90);
       }
       if (loaded || drawing) drawSprite(sprites.bolt, b.x + Math.sin(aim) * (8 + pull), b.y - 36 + pull, 28, 150, aim);
-      const ang = -Math.PI / 2 + aim;
-      ctx.strokeStyle = aimLocked ? "rgba(255,210,90,.35)" : "rgba(255,255,255,.28)";
-      ctx.setLineDash([8, 8]);
-      ctx.beginPath();
-      ctx.moveTo(b.x + Math.cos(ang) * 70, b.y + Math.sin(ang) * 70);
-      ctx.lineTo(b.x + Math.cos(ang) * 280, b.y + Math.sin(ang) * 280);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      if (showPath && loaded) {
+        const pts = trajectory();
+        ctx.strokeStyle = "rgba(255, 220, 120, .8)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([7, 7]);
+        ctx.beginPath();
+        pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        pts.forEach((p, i) => {
+          if (i % 4) return;
+          ctx.fillStyle = "rgba(255, 220, 120, .9)";
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
     }
     function drawBolt(x, y) {
       if (!drawSprite(sprites.bolt, x, y, 22, 78, 0)) {
