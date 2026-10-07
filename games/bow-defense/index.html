@@ -68,7 +68,7 @@
     function bowPos() {
       return {x: w * 0.58, y: Math.min(h - 200, h * 0.68)};
     }
-    function bagPos() { return {x: 86, y: h - 96}; }
+    function bagPos() { return {x: 78, y: Math.max(150, h * 0.38)}; }
     function pivot() {
       const b = bowPos();
       return {x: b.x, y: b.y - 18};
@@ -246,7 +246,7 @@
       if (ev && ev.clientX !== undefined) pointer = eventPos(ev);
       if (coinDrag) {
         const bag = bagPos();
-        if (Math.hypot(pointer.x - bag.x, pointer.y - bag.y) < 70) {
+        if (Math.hypot(pointer.x - bag.x, pointer.y - bag.y) < 78) {
           purse += coinDrag.value;
           coins = coins.filter(c => c.id !== coinDrag.id);
         }
@@ -463,16 +463,6 @@
       ctx.fillRect(0, 0, w, h);
       drawPath();
       const b = bowPos();
-      const bag = bagPos();
-      ctx.fillStyle = "#8a5a32";
-      ctx.beginPath();
-      ctx.ellipse(bag.x, bag.y + 8, 42, 30, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#c9844a";
-      ctx.fillRect(bag.x - 28, bag.y - 18, 56, 16);
-      ctx.fillStyle = "#f4f7f2";
-      ctx.font = "14px sans-serif";
-      ctx.fillText("袋", bag.x - 8, bag.y + 4);
       ctx.fillStyle = "rgba(255,255,255,.12)";
       ctx.fillRect(b.x + 124, b.y - 58, 150, 112);
       rackBolts().forEach(bolt => {
@@ -532,6 +522,23 @@
       }
       if (drag) drawBolt(pointer.x, pointer.y);
       drawBow();
+      const bag = bagPos();
+      ctx.fillStyle = "rgba(0,0,0,.35)";
+      ctx.beginPath();
+      ctx.ellipse(bag.x, bag.y + 10, 52, 36, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#c9844a";
+      ctx.beginPath();
+      ctx.ellipse(bag.x, bag.y + 6, 46, 32, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f0c14a";
+      ctx.fillRect(bag.x - 34, bag.y - 22, 68, 18);
+      ctx.strokeStyle = "#ffe08a";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(bag.x - 34, bag.y - 22, 68, 18);
+      ctx.fillStyle = "#1b1404";
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillText("コイン袋", bag.x - 30, bag.y - 8);
       if (state !== "play") {
         ctx.fillStyle = "rgba(8,16,12,.6)";
         ctx.fillRect(0, 0, w, h);
