@@ -83,11 +83,11 @@
       const dy = pointer.y - p.y;
       const wantPower = Math.max(0, Math.min(1, (dy - 16) / 150));
       power += (wantPower - power) * Math.min(1, dt * 12);
-      const dead = 64;
+      const dead = 18;
       if (Math.abs(dx) > dead) {
         const shifted = dx - Math.sign(dx) * dead;
-        const target = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, -shifted / 210));
-        aim += (target - aim) * Math.min(1, dt * 7);
+        const target = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, -shifted / 95));
+        aim += (target - aim) * Math.min(1, dt * 16);
       }
     }
     function shotSpeed() {
