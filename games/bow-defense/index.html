@@ -19,7 +19,13 @@
     button { border: 0; border-radius: 12px; padding: 8px 12px; background: #ffb703; color: #1b1404; font-weight: 700; cursor: pointer; }
     .shop { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 620px; }
     .shop button { text-align: left; font-size: 12px; line-height: 1.25; background: #243056; color: #f4f7f2; }
-    #hint { font-size: 14px; color: #d5e6cf; }
+    #board-box {
+      display: none; position: fixed; right: 16px; top: 92px; z-index: 4;
+      width: 240px; background: rgba(12,18,16,.88); border-radius: 14px; padding: 12px;
+      pointer-events: auto;
+    }
+    #board-box ol { margin: 8px 0 0; padding-left: 20px; }
+    #board-box button { margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -34,11 +40,19 @@
       <button id="up-auto" type="button">自動装填</button>
       <button id="up-repair" type="button">城の修理</button>
       <button id="path" type="button">軌道を表示</button>
+      <button id="sound" type="button">音オン</button>
+      <button id="board" type="button">順位表</button>
       <button id="again" type="button">はじめから</button>
       <a href="../../index.html">もどる</a>
     </div>
   </div>
   <canvas id="c"></canvas>
+  <div id="board-box">
+    <b>順位表</b>
+    <div id="board-note">このブラウザの記録</div>
+    <ol id="board-list"></ol>
+    <button id="board-close" type="button">閉じる</button>
+  </div>
   <script>
     const canvas = document.getElementById("c");
     const ctx = canvas.getContext("2d");
@@ -56,6 +70,8 @@
     let purse = 0, points = 0, best = Number(localStorage.getItem("bow-best") || 0), castle = 12, wave = 1, spawnLeft = 0, spawnTimer = 0, restock = 0;
     let bowLv = 0, arrowLv = 0, countLv = 0, featherLv = 0, quiverLv = 0, autoReload = false;
     let state = "ready", drag = null, coinDrag = null, banner = "";
+    let soundOn = localStorage.getItem("bow-sound") !== "0";
+    let audioCtx = null;
     const bowCosts = [8, 18, 32];
     const arrowCosts = [6, 14, 26];
     const countCosts = [12, 24];
@@ -64,6 +80,38 @@
     const autoCost = 20;
     const repairCost = 10;
 
+    function beep(freq, dur, type) {
+      if (!soundOn) return;
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type || "triangle";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start();
+      o.stop(audioCtx.currentTime + dur);
+    }
+    function loadBoard() {
+      try { return JSON.parse(localStorage.getItem("bow-board") || "[]"); }
+      catch (e) { return []; }
+    }
+    function saveScore() {
+      const name = (prompt("順位表に残す名前（8文字まで）", "弓士") || "弓士").replace(/\s+/g, "").slice(0, 8) || "弓士";
+      const board = loadBoard();
+      board.push({name, score: points, wave, at: Date.now()});
+      board.sort((a, b) => b.score - a.score);
+      localStorage.setItem("bow-board", JSON.stringify(board.slice(0, 8)));
+      showBoard();
+    }
+    function showBoard() {
+      const list = document.getElementById("board-list");
+      const board = loadBoard();
+      list.innerHTML = board.length ? board.map(row => `<li>${row.name}　${row.score}点　W${row.wave}</li>`).join("") : "<li>まだ記録がありません</li>";
+      document.getElementById("board-box").style.display = "block";
+    }
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       w = window.innerWidth;
@@ -313,6 +361,7 @@
         if (Math.hypot(pointer.x - bag.x, pointer.y - bag.y) < 78) {
           purse += coinDrag.value;
           coins = coins.filter(c => c.id !== coinDrag.id);
+          beep(720, 0.12, "square");
         }
         coinDrag = null;
         sync();
@@ -345,6 +394,7 @@
         });
       }
       loaded = false;
+      beep(420, 0.08, "triangle");
       tryAutoLoad();
       sync();
     }
@@ -353,6 +403,15 @@
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     document.getElementById("again").onclick = reset;
+    document.getElementById("sound").onclick = () => {
+      soundOn = !soundOn;
+      localStorage.setItem("bow-sound", soundOn ? "1" : "0");
+      document.getElementById("sound").textContent = soundOn ? "音オン" : "音オフ";
+      if (soundOn) beep(520, 0.1, "triangle");
+    };
+    document.getElementById("sound").textContent = soundOn ? "音オン" : "音オフ";
+    document.getElementById("board").onclick = showBoard;
+    document.getElementById("board-close").onclick = () => { document.getElementById("board-box").style.display = "none"; };
     document.getElementById("up-string").onclick = () => buy("string");
     document.getElementById("up-tip").onclick = () => buy("tip");
     document.getElementById("up-count").onclick = () => buy("count");
@@ -401,6 +460,7 @@
         purse += 4;
         addPoints(25);
         banner = "ウェーブ " + wave + "　ボーナス 4枚";
+        beep(640, 0.16, "triangle");
         sync();
       }
       enemies.forEach(e => e.dist += e.speed * dt);
@@ -409,7 +469,7 @@
         castle -= leaked.length;
         enemies = enemies.filter(e => e.dist < total);
         sync();
-        if (castle <= 0) { castle = 0; state = "lose"; sync(); }
+        if (castle <= 0) { castle = 0; state = "lose"; beep(140, 0.35, "sawtooth"); sync(); saveScore(); }
       }
       shots.forEach(s => {
         s.x += s.vx * dt;
@@ -423,6 +483,7 @@
             e.hp -= s.damage;
             s.life = 0;
             pops.push({x: p.x, y: p.y, life: 0.28});
+            beep(560, 0.05, "square");
             if (e.hp <= 0) {
               addPoints(e.score);
               coins.push({id: Date.now() + Math.random(), x: p.x, y: p.y, value: e.kind === "boss" ? 6 : e.score >= 20 ? 4 : 2});
