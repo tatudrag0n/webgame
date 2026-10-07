@@ -151,7 +151,19 @@
       const t = Math.max(0, Math.min(1, (y - 60) / Math.max(1, h - 80)));
       return 0.32 + t * 0.78;
     }
-    function pathWidth(y) { return 18 + depthScale(y) * 86; }
+    function pathWidth(y) { return 8 + Math.pow(depthScale(y), 1.6) * 150; }
+    function pathPoints() {
+      const gateY = bowPos().y - 24;
+      return [
+        {x: w * 0.5, y: 52},
+        {x: w * 0.58, y: h * 0.16},
+        {x: w * 0.34, y: h * 0.28},
+        {x: w * 0.68, y: h * 0.4},
+        {x: w * 0.3, y: h * 0.52},
+        {x: w * 0.62, y: h * 0.64},
+        {x: w * 0.46, y: gateY}
+      ];
+    }
     function bagPos() { return {x: 78, y: Math.max(150, h * 0.38)}; }
     function pivot() {
       const b = bowPos();
@@ -351,7 +363,7 @@
       if (canvas.setPointerCapture && ev.pointerId !== undefined) {
         try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
       }
-      const hitCoin = coins.find(c => Math.hypot(c.x - pointer.x, c.y - pointer.y) < 40);
+      const hitCoin = coins.find(c => Math.hypot(c.x - pointer.x, c.y - pointer.y) < Math.max(58, 34 * depthScale(c.y)));
       if (hitCoin) { coinDrag = hitCoin; ev.preventDefault(); return; }
       const hit = rackBolts().find(b => Math.hypot(b.x - pointer.x, b.y - pointer.y) < 54);
       if (hit && !loaded) {
@@ -579,9 +591,19 @@
         ctx.fillStyle = color;
         ctx.fill();
       };
-      ribbon(1.18, "#4e3b28");
-      ribbon(1, "#9a7348");
-      ribbon(0.62, "#c4a06a");
+      ribbon(1.55, "#3f6b3a");
+      ribbon(1.22, "#5c4630");
+      ribbon(1, "#8d6844");
+      ribbon(0.55, "#c4a06a");
+      samples.forEach((p, i) => {
+        if (i % 4) return;
+        const sc = depthScale(p.y);
+        ctx.fillStyle = i % 8 ? "#6b5340" : "#d9d3c7";
+        ctx.beginPath();
+        ctx.arc(left[i].x, left[i].y, 2 + sc * 5, 0, Math.PI * 2);
+        ctx.arc(right[i].x, right[i].y, 2 + sc * 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
       ctx.strokeStyle = "rgba(78,59,40,.45)";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -746,21 +768,16 @@
         ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
         ctx.fill();
       });
-      coins.forEach(c => {
-        if (c === coinDrag) return;
-        if (!drawSprite(sprites.coin, c.x, c.y, 36 * depthScale(c.y), 36 * depthScale(c.y), 0)) {
+      if (coinDrag) drawSprite(sprites.coin, coinDrag.x, coinDrag.y, 52, 52, 0);
+      else coins.forEach(c => {
+        const sc = Math.max(0.55, depthScale(c.y));
+        if (!drawSprite(sprites.coin, c.x, c.y, 40 * sc, 40 * sc, 0)) {
           ctx.fillStyle = "#f0c14a";
           ctx.beginPath();
-          ctx.arc(c.x, c.y, 14, 0, Math.PI * 2);
+          ctx.arc(c.x, c.y, 16, 0, Math.PI * 2);
           ctx.fill();
         }
       });
-      if (coinDrag && !drawSprite(sprites.coin, coinDrag.x, coinDrag.y, 42, 42, 0)) {
-        ctx.fillStyle = "#ffe08a";
-        ctx.beginPath();
-        ctx.arc(coinDrag.x, coinDrag.y, 16, 0, Math.PI * 2);
-        ctx.fill();
-      }
       if (drag) drawBolt(pointer.x, pointer.y);
       drawBow();
       const bag = bagPos();
