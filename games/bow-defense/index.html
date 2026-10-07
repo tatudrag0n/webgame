@@ -81,14 +81,13 @@
       const p = pivot();
       const dx = pointer.x - p.x;
       const dy = pointer.y - p.y;
-      const dist = Math.hypot(dx, dy);
-      const wantPower = Math.max(0, Math.min(1, (dy - 30) / 160));
-      power += (wantPower - power) * Math.min(1, dt * 10);
-      if (dist > 96) {
-        const target = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, Math.atan2(dx, -dy)));
-        const ease = Math.min(1, (dist - 96) / 180);
-        aim += (target - aim) * Math.min(1, dt * 5 * ease);
-        aim = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, aim));
+      const wantPower = Math.max(0, Math.min(1, (dy - 16) / 150));
+      power += (wantPower - power) * Math.min(1, dt * 12);
+      const dead = 64;
+      if (Math.abs(dx) > dead) {
+        const shifted = dx - Math.sign(dx) * dead;
+        const target = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, shifted / 210));
+        aim += (target - aim) * Math.min(1, dt * 7);
       }
     }
     function shotSpeed() {
@@ -176,7 +175,7 @@
       hpEl.textContent = castle;
       costText();
       document.getElementById("path").textContent = showPath ? "軌道を消す" : "軌道を表示";
-      hintEl.textContent = "十字が中心。近いと向きは動かず、離すとゆっくり向く。下に引いて離すと発射。";
+      hintEl.textContent = "下に引いても向きは変わらない。左右にずらすと照準だけ動く。";
     }
     function buy(kind) {
       const costs = kind === "bow" ? bowCosts : arrowCosts;
