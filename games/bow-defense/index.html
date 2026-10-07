@@ -139,8 +139,13 @@
     sprites.bg = new Image();
     sprites.bg.src = "img/bg.jpg";
     function bowPos() {
-      return {x: w * 0.58, y: Math.min(h - 200, h * 0.68)};
+      return {x: w * 0.5, y: Math.min(h - 170, h * 0.78)};
     }
+    function depthScale(y) {
+      const t = Math.max(0, Math.min(1, (y - 60) / Math.max(1, h - 80)));
+      return 0.32 + t * 0.78;
+    }
+    function pathWidth(y) { return 18 + depthScale(y) * 86; }
     function bagPos() { return {x: 78, y: Math.max(150, h * 0.38)}; }
     function pivot() {
       const b = bowPos();
@@ -186,16 +191,13 @@
       return pts;
     }
     function pathPoints() {
-      const top = 78;
-      const mid = h * 0.34;
-      const low = Math.min(h * 0.56, bowPos().y - 70);
+      const gateY = bowPos().y - 36;
       return [
-        {x: -30, y: top},
-        {x: w * 0.78, y: top},
-        {x: w * 0.78, y: mid},
-        {x: w * 0.18, y: mid},
-        {x: w * 0.18, y: low},
-        {x: w * 0.86, y: low}
+        {x: w * 0.5, y: 64},
+        {x: w * 0.66, y: h * 0.24},
+        {x: w * 0.36, y: h * 0.42},
+        {x: w * 0.58, y: h * 0.58},
+        {x: w * 0.5, y: gateY}
       ];
     }
     function pathInfo() {
@@ -516,7 +518,7 @@
         for (const e of enemies) {
           if (e.hp <= 0) continue;
           const p = pointAt(e.dist);
-          if (Math.hypot(p.x - s.x, p.y - s.y) < e.r + 7) {
+          if (Math.hypot(p.x - s.x, p.y - s.y) < e.r * depthScale(p.y) + 8) {
             e.hp -= s.damage;
             s.life = 0;
             pops.push({x: p.x, y: p.y, life: 0.28});
@@ -536,30 +538,59 @@
       pops = pops.filter(p => p.life > 0);
     }
     function drawPath() {
-      const {pts} = pathInfo();
-      const stroke = (width, color) => {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
+      const {total} = pathInfo();
+      const samples = [];
+      for (let d = 0; d <= total; d += 10) samples.push(pointAt(d));
+      const left = [], right = [];
+      samples.forEach((p, i) => {
+        const a = samples[Math.max(0, i - 1)];
+        const b = samples[Math.min(samples.length - 1, i + 1)];
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        const nx = -(b.y - a.y) / len;
+        const ny = (b.x - a.x) / len;
+        const hw = pathWidth(p.y) / 2;
+        left.push({x: p.x + nx * hw, y: p.y + ny * hw});
+        right.push({x: p.x - nx * hw, y: p.y - ny * hw});
+      });
+      const ribbon = (inset, color) => {
         ctx.beginPath();
-        pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-        ctx.stroke();
+        left.forEach((p, i) => {
+          const q = right[i];
+          const x = (p.x + q.x) / 2 + (p.x - q.x) / 2 * inset;
+          const y = (p.y + q.y) / 2 + (p.y - q.y) / 2 * inset;
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        for (let i = right.length - 1; i >= 0; i--) {
+          const p = left[i], q = right[i];
+          ctx.lineTo((p.x + q.x) / 2 + (q.x - p.x) / 2 * inset, (p.y + q.y) / 2 + (q.y - p.y) / 2 * inset);
+        }
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
       };
-      stroke(58, "#5c4630");
-      stroke(46, "#a67c52");
-      stroke(30, "#c4a06a");
-      ctx.setLineDash([16, 14]);
-      stroke(4, "rgba(92,70,40,.55)");
-      ctx.setLineDash([]);
-      const gate = pts[pts.length - 1];
-      ctx.fillStyle = "#d9d3c7";
-      ctx.fillRect(gate.x - 6, gate.y - 40, 52, 74);
-      ctx.fillStyle = "#8d5a34";
-      ctx.fillRect(gate.x + 10, gate.y - 6, 18, 40);
-      ctx.fillStyle = "#f4f7f2";
-      ctx.font = "14px sans-serif";
-      ctx.fillText("城", gate.x + 12, gate.y - 48);
+      ribbon(1.18, "#4e3b28");
+      ribbon(1, "#9a7348");
+      ribbon(0.62, "#c4a06a");
+      ctx.strokeStyle = "rgba(78,59,40,.45)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      samples.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.stroke();
+      const gate = samples[samples.length - 1];
+      const gw = pathWidth(gate.y);
+      ctx.fillStyle = "#b7b1a6";
+      ctx.fillRect(gate.x - gw * 0.7, gate.y - 18, gw * 1.4, 46);
+      ctx.fillStyle = "#6d5844";
+      ctx.fillRect(gate.x - gw * 0.22, gate.y - 4, gw * 0.44, 32);
+    }
+    function drawWall() {
+      const y = h - 54;
+      ctx.fillStyle = "#7f7c76";
+      ctx.fillRect(0, y, w, 70);
+      ctx.fillStyle = "#9a968e";
+      for (let x = 0; x < w; x += 42) ctx.fillRect(x, y - 16, 26, 16);
+      ctx.fillStyle = "#5f5c57";
+      ctx.fillRect(0, y, w, 6);
     }
     function drawSprite(img, x, y, dw, dh, rot) {
       if (!img || !img.complete || !img.naturalWidth) return false;
@@ -652,6 +683,7 @@
       ctx.fillRect(0, 0, w, h);
       if (sprites.bg.complete && sprites.bg.naturalWidth) ctx.drawImage(sprites.bg, 0, 0, w, h);
       drawPath();
+      drawWall();
       const b = bowPos();
       ctx.fillStyle = "rgba(255,255,255,.12)";
       ctx.fillRect(b.x + 124, b.y - 58, 150, 112);
@@ -673,8 +705,9 @@
       }
       enemies.forEach(e => {
         const p = pointAt(e.dist);
-        const img = e.kind === "boss" ? sprites.slime2 : e.kind === "tough" ? sprites.slime2 : sprites.slime;
-        if (!drawSprite(img, p.x, p.y, e.r * 3.2, e.r * 3.2, 0)) {
+        const sc = depthScale(p.y);
+        const img = e.kind === "boss" || e.kind === "tough" ? sprites.slime2 : sprites.slime;
+        if (!drawSprite(img, p.x, p.y, e.r * 3.2 * sc, e.r * 3.2 * sc, 0)) {
           ctx.fillStyle = e.color;
           ctx.beginPath();
           ctx.arc(p.x, p.y, e.r, 0, Math.PI * 2);
@@ -686,8 +719,9 @@
         ctx.fillRect(p.x - 14, p.y - e.r - 10, 28 * Math.max(0, e.hp / e.max), 4);
       });
       shots.forEach(s => {
+        const sc = depthScale(s.y);
         const ang = Math.atan2(s.vy, s.vx) + Math.PI / 2;
-        if (!drawSprite(sprites.bolt, s.x, s.y, 24, 92, ang)) {
+        if (!drawSprite(sprites.bolt, s.x, s.y, 24 * sc, 92 * sc, ang)) {
           ctx.strokeStyle = "#f4e2b0";
           ctx.beginPath();
           ctx.moveTo(s.x, s.y);
@@ -703,7 +737,7 @@
       });
       coins.forEach(c => {
         if (c === coinDrag) return;
-        if (!drawSprite(sprites.coin, c.x, c.y, 36, 36, 0)) {
+        if (!drawSprite(sprites.coin, c.x, c.y, 36 * depthScale(c.y), 36 * depthScale(c.y), 0)) {
           ctx.fillStyle = "#f0c14a";
           ctx.beginPath();
           ctx.arc(c.x, c.y, 14, 0, Math.PI * 2);
