@@ -17,7 +17,8 @@
     a, button { pointer-events: auto; }
     a { color: #d7ffb8; }
     button { border: 0; border-radius: 12px; padding: 8px 12px; background: #ffb703; color: #1b1404; font-weight: 700; cursor: pointer; }
-    .shop { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 620px; }
+    .shop { display: none; position: fixed; right: 12px; top: 64px; z-index: 3; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 340px; background: rgba(8,16,12,.82); padding: 10px; border-radius: 14px; pointer-events: auto; }
+    .shop.open { display: flex; }
     .shop button { text-align: left; font-size: 12px; line-height: 1.25; background: #243056; color: #f4f7f2; }
     #board-box {
       display: none; position: fixed; right: 16px; top: 92px; z-index: 4;
@@ -31,7 +32,15 @@
 <body>
   <div class="hud">
     <div>ウェーブ <b id="wave">1</b>　得点 <b id="points">0</b>　記録 <b id="best">0</b>　袋 <b id="score">0</b>　城 <b id="hp">12</b><div id="hint">コインは袋までドラッグ。</div></div>
-    <div class="shop">
+    <div>
+      <button id="shop-toggle" type="button">強化</button>
+      <button id="sound" type="button">音オン</button>
+      <button id="board" type="button">順位表</button>
+      <button id="again" type="button">はじめから</button>
+      <a href="../../index.html">もどる</a>
+    </div>
+  </div>
+  <div class="shop" id="shop">
       <button id="up-tip" type="button">鋼の矢じり</button>
       <button id="up-string" type="button">鋼の弦</button>
       <button id="up-count" type="button">追加の矢</button>
@@ -40,11 +49,6 @@
       <button id="up-auto" type="button">自動装填</button>
       <button id="up-repair" type="button">城の修理</button>
       <button id="path" type="button">軌道を表示</button>
-      <button id="sound" type="button">音オン</button>
-      <button id="board" type="button">順位表</button>
-      <button id="again" type="button">はじめから</button>
-      <a href="../../index.html">もどる</a>
-    </div>
   </div>
   <canvas id="c"></canvas>
   <div id="board-box">
@@ -252,7 +256,13 @@
       hpEl.textContent = castle;
       costText();
       document.getElementById("path").textContent = showPath ? "軌道を消す" : "軌道を表示";
-      hintEl.textContent = "下側を左へ動かすと照準は右。右へ動かすと照準は左。下に引いて離すと発射。";
+      hintEl.textContent = drag
+        ? "矢を十字の近くで離すと装填。タップでも選べる。"
+        : coinDrag
+        ? "袋の近くで離すと入る。"
+        : loaded
+        ? "下側を左へ動かすと照準は右。下へ引いて離すと発射。"
+        : "右の矢をタップするか、十字までドラッグ。";
     }
     function tryAutoLoad() {
       if (!autoReload || loaded || !bolts.length) return;
@@ -322,17 +332,22 @@
       if (canvas.setPointerCapture && ev.pointerId !== undefined) {
         try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
       }
-      const hitCoin = coins.find(c => Math.hypot(c.x - pointer.x, c.y - pointer.y) < 28);
+      const hitCoin = coins.find(c => Math.hypot(c.x - pointer.x, c.y - pointer.y) < 40);
       if (hitCoin) { coinDrag = hitCoin; ev.preventDefault(); return; }
-      const hit = rackBolts().find(b => Math.hypot(b.x - pointer.x, b.y - pointer.y) < 42);
+      const hit = rackBolts().find(b => Math.hypot(b.x - pointer.x, b.y - pointer.y) < 54);
       if (hit && !loaded) {
         drag = hit;
         ev.preventDefault();
         return;
       }
       const p = pivot();
-      if (drag && Math.hypot(pointer.x - p.x, pointer.y - p.y) < 120) return;
-      if (!drag && !coinDrag && loaded && Math.hypot(pointer.x - p.x, pointer.y - p.y) < 130) {
+      if (!drag && !coinDrag && !loaded && selectedBolt && Math.hypot(pointer.x - p.x, pointer.y - p.y) < 150) {
+        drag = selectedBolt;
+        loadFromDrag();
+        ev.preventDefault();
+        return;
+      }
+      if (!drag && !coinDrag && loaded && Math.hypot(pointer.x - p.x, pointer.y - p.y) < 160) {
         drawing = true;
         ev.preventDefault();
       }
@@ -342,23 +357,34 @@
       if (coinDrag) {
         coinDrag.x = pointer.x;
         coinDrag.y = pointer.y;
+        const bag = bagPos();
+        if (Math.hypot(pointer.x - bag.x, pointer.y - bag.y) < 46) {
+          coinDrag.x = bag.x;
+          coinDrag.y = bag.y;
+        }
         ev.preventDefault();
         return;
       }
-      if (drag) ev.preventDefault();
+      if (drag) {
+        ev.preventDefault();
+        sync();
+      }
     }
+    let selectedBolt = null;
     function loadFromDrag() {
       if (!drag || loaded) return;
       loaded = true;
       bolts = bolts.filter(item => item.id !== drag.id);
+      selectedBolt = null;
       drag = null;
+      beep(300, 0.08, "triangle");
       sync();
     }
     function onUp(ev) {
       if (ev && ev.clientX !== undefined) pointer = eventPos(ev);
       if (coinDrag) {
         const bag = bagPos();
-        if (Math.hypot(pointer.x - bag.x, pointer.y - bag.y) < 78) {
+        if (Math.hypot(pointer.x - bag.x, pointer.y - bag.y) < 100) {
           purse += coinDrag.value;
           coins = coins.filter(c => c.id !== coinDrag.id);
           beep(720, 0.12, "square");
@@ -367,9 +393,12 @@
         sync();
       } else if (drag) {
         const p = pivot();
-        const onBow = Math.hypot(pointer.x - p.x, pointer.y - p.y) < 120;
+        const moved = Math.hypot(pointer.x - drag.x, pointer.y - drag.y);
+        const onBow = Math.hypot(pointer.x - p.x, pointer.y - p.y) < 150;
         if (onBow) loadFromDrag();
-        else sync();
+        else if (moved < 12) selectedBolt = drag;
+        drag = null;
+        sync();
       } else if (drawing) {
         if (power > 0.22) fire();
         drawing = false;
@@ -411,6 +440,7 @@
     };
     document.getElementById("sound").textContent = soundOn ? "音オン" : "音オフ";
     document.getElementById("board").onclick = showBoard;
+    document.getElementById("shop-toggle").onclick = () => document.getElementById("shop").classList.toggle("open");
     document.getElementById("board-close").onclick = () => { document.getElementById("board-box").style.display = "none"; };
     document.getElementById("up-string").onclick = () => buy("string");
     document.getElementById("up-tip").onclick = () => buy("tip");
@@ -564,9 +594,21 @@
       ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
       ctx.moveTo(p.x - 24, p.y);
       ctx.lineTo(p.x + 24, p.y);
-      ctx.moveTo(p.x, p.y - 24);
-      ctx.lineTo(p.x, p.y + 24);
+      ctx.moveTo(p.x, p.y + 24);
+      ctx.lineTo(p.x, p.y - 24);
       ctx.stroke();
+      if (loaded) {
+        const ang = -Math.PI / 2 + aim;
+        ctx.strokeStyle = "rgba(255,224,138,.75)";
+        ctx.beginPath();
+        ctx.moveTo(p.x + Math.cos(ang) * 36, p.y + Math.sin(ang) * 36);
+        ctx.lineTo(p.x + Math.cos(ang) * 130, p.y + Math.sin(ang) * 130);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#203828";
+      ctx.fillRect(p.x + 34, p.y - 6, 72, 8);
+      ctx.fillStyle = "#ffb703";
+      ctx.fillRect(p.x + 34, p.y - 6, 72 * power, 8);
       if (showPath && loaded) {
         const pts = trajectory();
         ctx.strokeStyle = "rgba(255, 220, 120, .8)";
@@ -607,12 +649,21 @@
       ctx.fillStyle = "rgba(255,255,255,.12)";
       ctx.fillRect(b.x + 124, b.y - 58, 150, 112);
       rackBolts().forEach(bolt => {
-        ctx.fillStyle = "rgba(255,255,255,.16)";
+        ctx.strokeStyle = selectedBolt && selectedBolt.id === bolt.id ? "#ffe08a" : "rgba(255,255,255,.16)";
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(bolt.x, bolt.y, 20, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.arc(bolt.x, bolt.y, 24, 0, Math.PI * 2);
+        ctx.stroke();
         drawBolt(bolt.x, bolt.y);
       });
+      if (drag) {
+        const p = pivot();
+        ctx.strokeStyle = Math.hypot(pointer.x - p.x, pointer.y - p.y) < 150 ? "#9dff7a" : "#ffe08a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 70, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       enemies.forEach(e => {
         const p = pointAt(e.dist);
         const img = e.kind === "boss" ? sprites.slime2 : e.kind === "tough" ? sprites.slime2 : sprites.slime;
@@ -661,6 +712,13 @@
       if (drag) drawBolt(pointer.x, pointer.y);
       drawBow();
       const bag = bagPos();
+      if (coinDrag) {
+        ctx.strokeStyle = Math.hypot(pointer.x - bag.x, pointer.y - bag.y) < 100 ? "#9dff7a" : "#ffe08a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(bag.x, bag.y, 58, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       if (!drawSprite(sprites.bag, bag.x, bag.y, 120, 100, 0)) {
         ctx.fillStyle = "#c9844a";
         ctx.beginPath();
@@ -683,7 +741,7 @@
         ctx.fillText(state === "ready" ? "弓で城を守れ" : "城まで来てしまった", w / 2, h / 2 - 40);
         ctx.font = "18px sans-serif";
         const lines = state === "ready"
-          ? ["矢をクロスボウへドラッグして装填", "下側を左へ動かすと照準は右", "下に引いて離すと発射。コインは袋へ", "「はじめから」で開始。記録を伸ばそう"]
+          ? ["矢をタップしてから十字をタップでも装填", "下側を左へ動かすと照準は右", "下に引いて離すと発射。コインは袋へ", "強化ボタンは必要なときだけ開く"]
           : ["得点 " + points + "　記録 " + best, "「はじめから」でもう一度"];
         lines.forEach((line, i) => ctx.fillText(line, w / 2, h / 2 + i * 28));
         ctx.textAlign = "left";
