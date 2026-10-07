@@ -9,47 +9,53 @@
     html, body { margin: 0; height: 100%; background: #102018; overflow: hidden; }
     body { font-family: "Segoe UI", "Hiragino Sans", sans-serif; color: #f4f7f2; }
     canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
-    .hud {
-      position: fixed; left: 16px; right: 16px; top: 12px;
-      display: flex; justify-content: space-between; gap: 12px; align-items: center;
-      pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.45); z-index: 2;
-    }
+    .hud, .hintbar, .actions { position: fixed; z-index: 2; pointer-events: none; }
+    .hud { left: 12px; right: 12px; top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .stat { pointer-events: none; background: rgba(8,16,12,.72); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 6px 10px; min-width: 64px; }
+    .stat span { display: block; font-size: 11px; color: #c9d7c4; }
+    .stat b { font-size: 16px; }
+    .castle { min-width: 120px; }
+    .bar { height: 8px; margin-top: 6px; background: #203028; border-radius: 99px; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 60%; background: #8dce7a; }
+    .actions { top: 10px; right: 12px; display: flex; gap: 6px; }
+    .hintbar { left: 12px; right: 12px; bottom: 12px; text-align: center; }
+    #hint { display: inline-block; pointer-events: none; background: rgba(8,16,12,.72); border-radius: 999px; padding: 8px 14px; font-size: 14px; }
     a, button { pointer-events: auto; }
-    a { color: #d7ffb8; }
+    a { color: #d7ffb8; align-self: center; text-decoration: none; }
     button { border: 0; border-radius: 12px; padding: 8px 12px; background: #ffb703; color: #1b1404; font-weight: 700; cursor: pointer; }
-    .shop { display: none; position: fixed; right: 12px; top: 64px; z-index: 3; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 340px; background: rgba(8,16,12,.82); padding: 10px; border-radius: 14px; pointer-events: auto; }
-    .shop.open { display: flex; }
-    .shop button { text-align: left; font-size: 12px; line-height: 1.25; background: #243056; color: #f4f7f2; }
-    #board-box {
-      display: none; position: fixed; right: 16px; top: 92px; z-index: 4;
-      width: 240px; background: rgba(12,18,16,.88); border-radius: 14px; padding: 12px;
-      pointer-events: auto;
-    }
+    .shop, #board-box { display: none; position: fixed; right: 12px; top: 58px; z-index: 4; width: min(340px, calc(100vw - 24px)); background: rgba(10,16,14,.92); border: 1px solid rgba(255,255,255,.14); border-radius: 16px; padding: 12px; pointer-events: auto; }
+    .shop.open { display: grid; gap: 6px; }
+    .shop button, #board-box button { width: 100%; text-align: left; background: #243056; color: #f4f7f2; }
     #board-box ol { margin: 8px 0 0; padding-left: 20px; }
-    #board-box button { margin-top: 8px; }
   </style>
 </head>
 <body>
   <div class="hud">
-    <div>ウェーブ <b id="wave">1</b>　得点 <b id="points">0</b>　記録 <b id="best">0</b>　袋 <b id="score">0</b>　城 <b id="hp">12</b><div id="hint">コインは袋までドラッグ。</div></div>
-    <div>
-      <button id="shop-toggle" type="button">強化</button>
-      <button id="sound" type="button">音オン</button>
-      <button id="board" type="button">順位表</button>
-      <button id="again" type="button">はじめから</button>
-      <a href="../../index.html">もどる</a>
-    </div>
+    <div class="stat">ウェーブ<span><b id="wave">1</b></span></div>
+    <div class="stat">得点<span><b id="points">0</b></span></div>
+    <div class="stat">記録<span><b id="best">0</b></span></div>
+    <div class="stat">袋<span><b id="score">0</b></span></div>
+    <div class="stat castle">城 <b id="hp">12</b><div class="bar"><i id="hp-bar"></i></div></div>
+  </div>
+  <div class="actions">
+    <button id="shop-toggle" type="button">強化</button>
+    <button id="sound" type="button">音</button>
+    <button id="board" type="button">順位</button>
+    <button id="again" type="button">はじめから</button>
+    <a href="../../index.html">もどる</a>
   </div>
   <div class="shop" id="shop">
-      <button id="up-tip" type="button">鋼の矢じり</button>
-      <button id="up-string" type="button">鋼の弦</button>
-      <button id="up-count" type="button">追加の矢</button>
-      <button id="up-feather" type="button">軽い矢羽</button>
-      <button id="up-quiver" type="button">予備の矢筒</button>
-      <button id="up-auto" type="button">自動装填</button>
-      <button id="up-repair" type="button">城の修理</button>
-      <button id="path" type="button">軌道を表示</button>
+    <b>強化</b>
+    <button id="up-tip" type="button">鋼の矢じり</button>
+    <button id="up-string" type="button">鋼の弦</button>
+    <button id="up-count" type="button">追加の矢</button>
+    <button id="up-feather" type="button">軽い矢羽</button>
+    <button id="up-quiver" type="button">予備の矢筒</button>
+    <button id="up-auto" type="button">自動装填</button>
+    <button id="up-repair" type="button">城の修理</button>
+    <button id="path" type="button">軌道を表示</button>
   </div>
+  <div class="hintbar"><div id="hint">コインは袋までドラッグ。</div></div>
   <canvas id="c"></canvas>
   <div id="board-box">
     <b>順位表</b>
@@ -254,6 +260,7 @@
       bestEl.textContent = best;
       scoreEl.textContent = purse;
       hpEl.textContent = castle;
+      document.getElementById("hp-bar").style.width = Math.max(0, castle / 20 * 100) + "%";
       costText();
       document.getElementById("path").textContent = showPath ? "軌道を消す" : "軌道を表示";
       hintEl.textContent = drag
@@ -435,7 +442,7 @@
     document.getElementById("sound").onclick = () => {
       soundOn = !soundOn;
       localStorage.setItem("bow-sound", soundOn ? "1" : "0");
-      document.getElementById("sound").textContent = soundOn ? "音オン" : "音オフ";
+      document.getElementById("sound").textContent = soundOn ? "音" : "消";
       if (soundOn) beep(520, 0.1, "triangle");
     };
     document.getElementById("sound").textContent = soundOn ? "音オン" : "音オフ";
