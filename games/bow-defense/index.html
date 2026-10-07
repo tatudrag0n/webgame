@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>弓のタワーディフェンス</title>
+  <title>弓のタワーディフェンス | 城を守り続けろ</title>
+  <meta name="description" content="自分で矢を込めてクロスボウを引き、道を進むスライムから城を守るブラウザゲーム。">
   <style>
     html, body { margin: 0; height: 100%; background: #102018; overflow: hidden; }
     body { font-family: "Segoe UI", "Hiragino Sans", sans-serif; color: #f4f7f2; }
@@ -23,7 +24,7 @@
 </head>
 <body>
   <div class="hud">
-    <div>ウェーブ <b id="wave">1</b>　袋 <b id="score">0</b>　城 <b id="hp">12</b><div id="hint">コインは左下の袋までドラッグ。</div></div>
+    <div>ウェーブ <b id="wave">1</b>　得点 <b id="points">0</b>　記録 <b id="best">0</b>　袋 <b id="score">0</b>　城 <b id="hp">12</b><div id="hint">コインは袋までドラッグ。</div></div>
     <div class="shop">
       <button id="up-tip" type="button">鋼の矢じり</button>
       <button id="up-string" type="button">鋼の弦</button>
@@ -43,6 +44,8 @@
     const ctx = canvas.getContext("2d");
     const waveEl = document.getElementById("wave");
     const scoreEl = document.getElementById("score");
+    const pointsEl = document.getElementById("points");
+    const bestEl = document.getElementById("best");
     const hpEl = document.getElementById("hp");
     const hintEl = document.getElementById("hint");
     let w = 1, h = 1, dpr = 1;
@@ -50,9 +53,9 @@
     let bolts = [], enemies = [], shots = [], pops = [], coins = [];
     let loaded = false, drawing = false, power = 0, aim = 0;
     let showPath = localStorage.getItem("bow-path") === "1";
-    let purse = 0, castle = 12, wave = 1, spawnLeft = 0, spawnTimer = 0, restock = 0;
+    let purse = 0, points = 0, best = Number(localStorage.getItem("bow-best") || 0), castle = 12, wave = 1, spawnLeft = 0, spawnTimer = 0, restock = 0;
     let bowLv = 0, arrowLv = 0, countLv = 0, featherLv = 0, quiverLv = 0, autoReload = false;
-    let state = "play", drag = null, coinDrag = null;
+    let state = "ready", drag = null, coinDrag = null, banner = "";
     const bowCosts = [8, 18, 32];
     const arrowCosts = [6, 14, 26];
     const countCosts = [12, 24];
@@ -172,9 +175,16 @@
       bolts = Array.from({length: 6}, (_, i) => ({id: i + 1}));
       enemies = []; shots = []; pops = []; coins = [];
       loaded = false; drawing = false; power = 0; aim = 0; drag = null; coinDrag = null;
-      purse = 0; castle = 12; wave = 1; bowLv = 0; arrowLv = 0; countLv = 0; featherLv = 0; quiverLv = 0; autoReload = false;
-      spawnLeft = 7; spawnTimer = 0.7; restock = 0; state = "play";
+      purse = 0; points = 0; castle = 12; wave = 1; bowLv = 0; arrowLv = 0; countLv = 0; featherLv = 0; quiverLv = 0; autoReload = false;
+      spawnLeft = 8; spawnTimer = 0.8; restock = 0; state = "play"; banner = "ウェーブ 1";
       sync();
+    }
+    function addPoints(n) {
+      points += n;
+      if (points > best) {
+        best = points;
+        localStorage.setItem("bow-best", String(best));
+      }
     }
     function costText() {
       const price = (lv, costs) => lv >= costs.length ? "最大" : costs[lv] + "枚";
@@ -188,6 +198,8 @@
     }
     function sync() {
       waveEl.textContent = wave;
+      pointsEl.textContent = points;
+      bestEl.textContent = best;
       scoreEl.textContent = purse;
       hpEl.textContent = castle;
       costText();
@@ -235,15 +247,19 @@
       sync();
     }
     function spawn() {
-      const tough = wave > 3 && Math.random() < 0.34;
+      const roll = Math.random();
+      const fast = roll < 0.28;
+      const tough = !fast && roll < 0.55;
+      const boss = wave % 5 === 0 && roll < 0.2;
       enemies.push({
         dist: 0,
-        r: tough ? 22 : 16,
-        hp: (tough ? 4 : 2) + Math.floor(wave / 2),
-        max: (tough ? 4 : 2) + Math.floor(wave / 2),
-        speed: (tough ? 42 : 58) + wave * 3,
-        color: tough ? "#79c0ea" : "#86d98a",
-        score: tough ? 20 : 10
+        r: boss ? 30 : tough ? 22 : fast ? 13 : 16,
+        hp: (boss ? 10 : tough ? 4 : fast ? 1 : 2) + Math.floor(wave / 2),
+        max: (boss ? 10 : tough ? 4 : fast ? 1 : 2) + Math.floor(wave / 2),
+        speed: (boss ? 30 : tough ? 40 : fast ? 78 : 56) + wave * 2,
+        color: boss ? "#f0c14a" : tough ? "#79c0ea" : "#86d98a",
+        kind: boss ? "boss" : tough ? "tough" : "small",
+        score: boss ? 40 : tough ? 20 : 10
       });
     }
     function eventPos(ev) {
@@ -379,13 +395,13 @@
           spawnTimer = Math.max(0.4, 1.05 - wave * 0.06);
         }
       } else if (!enemies.length && !shots.length) {
-        if (wave >= 8) state = "win";
-        else {
-          wave += 1;
-          spawnLeft = 6 + wave;
-          spawnTimer = 1.2;
-          sync();
-        }
+        wave += 1;
+        spawnLeft = 6 + Math.min(wave, 18);
+        spawnTimer = 1.1;
+        purse += 4;
+        addPoints(25);
+        banner = "ウェーブ " + wave + "　ボーナス 4枚";
+        sync();
       }
       enemies.forEach(e => e.dist += e.speed * dt);
       const leaked = enemies.filter(e => e.dist >= total);
@@ -408,7 +424,8 @@
             s.life = 0;
             pops.push({x: p.x, y: p.y, life: 0.28});
             if (e.hp <= 0) {
-              coins.push({id: Date.now() + Math.random(), x: p.x, y: p.y, value: e.score >= 20 ? 4 : 2});
+              addPoints(e.score);
+              coins.push({id: Date.now() + Math.random(), x: p.x, y: p.y, value: e.kind === "boss" ? 6 : e.score >= 20 ? 4 : 2});
             }
           }
         }
@@ -537,7 +554,7 @@
       });
       enemies.forEach(e => {
         const p = pointAt(e.dist);
-        const img = e.color === "#79c0ea" ? sprites.slime2 : sprites.slime;
+        const img = e.kind === "boss" ? sprites.slime2 : e.kind === "tough" ? sprites.slime2 : sprites.slime;
         if (!drawSprite(img, p.x, p.y, e.r * 3.2, e.r * 3.2, 0)) {
           ctx.fillStyle = e.color;
           ctx.beginPath();
@@ -589,20 +606,31 @@
         ctx.ellipse(bag.x, bag.y, 46, 32, 0, 0, Math.PI * 2);
         ctx.fill();
       }
+      if (banner) {
+        ctx.fillStyle = "#ffe08a";
+        ctx.font = "bold 22px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(banner, w / 2, 78);
+        ctx.textAlign = "left";
+      }
       if (state !== "play") {
-        ctx.fillStyle = "rgba(8,16,12,.6)";
+        ctx.fillStyle = "rgba(8,16,12,.66)";
         ctx.fillRect(0, 0, w, h);
         ctx.fillStyle = "#fff";
         ctx.textAlign = "center";
-        ctx.font = "bold 40px sans-serif";
-        ctx.fillText(state === "win" ? "守りきった！" : "城まで来てしまった", w / 2, h / 2);
+        ctx.font = "bold 36px sans-serif";
+        ctx.fillText(state === "ready" ? "弓で城を守れ" : "城まで来てしまった", w / 2, h / 2 - 40);
         ctx.font = "18px sans-serif";
-        ctx.fillText("「はじめから」でもう一度", w / 2, h / 2 + 36);
+        const lines = state === "ready"
+          ? ["矢をクロスボウへドラッグして装填", "下側を左へ動かすと照準は右", "下に引いて離すと発射。コインは袋へ", "「はじめから」で開始。記録を伸ばそう"]
+          : ["得点 " + points + "　記録 " + best, "「はじめから」でもう一度"];
+        lines.forEach((line, i) => ctx.fillText(line, w / 2, h / 2 + i * 28));
         ctx.textAlign = "left";
       }
     }
     resize();
-    reset();
+    bestEl.textContent = best;
+    sync();
     requestAnimationFrame(frame);
   </script>
 </body>
