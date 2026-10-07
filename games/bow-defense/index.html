@@ -69,19 +69,21 @@
       return {x: w * 0.58, y: Math.min(h - 200, h * 0.68)};
     }
     function bagPos() { return {x: 86, y: h - 96}; }
-    function aimAtFinger() {
+    function pivot() {
       const b = bowPos();
+      return {x: b.x, y: b.y + 8};
+    }
+    function aimAtFinger() {
+      const b = pivot();
       const dx = pointer.x - b.x;
       const dy = pointer.y - b.y;
       const dist = Math.hypot(dx, dy);
       power = Math.max(0, Math.min(1, (dy - 24) / 140));
       if (dist < 78) return;
-      const target = Math.atan2(dx, -dy);
+      const target = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, Math.atan2(dx, -dy)));
       const influence = Math.min(1, (dist - 78) / 220);
-      let delta = target - aim;
-      while (delta > Math.PI) delta -= Math.PI * 2;
-      while (delta < -Math.PI) delta += Math.PI * 2;
-      aim += delta * influence;
+      aim += (target - aim) * influence;
+      aim = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, aim));
     }
     function shotSpeed() {
       return (540 + bowLv * 120) + power * (720 + bowLv * 80);
@@ -168,7 +170,7 @@
       hpEl.textContent = castle;
       costText();
       document.getElementById("path").textContent = showPath ? "軌道を消す" : "軌道を表示";
-      hintEl.textContent = "弓の近くでは向きはあまり変わらない。離すほどねらえる。下に引いて離すと発射。";
+      hintEl.textContent = "白い丸が中心。その近くでは向きはあまり変わらない。左右90度まで向ける。";
     }
     function buy(kind) {
       const costs = kind === "bow" ? bowCosts : arrowCosts;
@@ -390,11 +392,30 @@
     }
     function drawBow() {
       const b = bowPos();
+      const p = pivot();
       const pull = drawing ? power * 42 : 0;
+      ctx.strokeStyle = "rgba(255,255,255,.28)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 78, Math.PI, 0);
+      ctx.stroke();
       if (!drawSprite(sprites.bow, b.x, b.y + 20, 210, 300, aim)) {
         ctx.fillStyle = "#6a4328";
         ctx.fillRect(b.x - 16, b.y - 20, 32, 90);
       }
+      ctx.fillStyle = "rgba(8,16,12,.55)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffe08a";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
+      ctx.moveTo(p.x - 22, p.y);
+      ctx.lineTo(p.x + 22, p.y);
+      ctx.moveTo(p.x, p.y - 22);
+      ctx.lineTo(p.x, p.y + 22);
+      ctx.stroke();
       if (loaded || drawing) drawSprite(sprites.bolt, b.x + Math.sin(aim) * (8 + pull), b.y - 36 + pull, 28, 150, aim);
       if (showPath && loaded) {
         const pts = trajectory();
