@@ -23,9 +23,14 @@
     a, button { pointer-events: auto; }
     a { color: #d7ffb8; align-self: center; text-decoration: none; }
     button { border: 0; border-radius: 12px; padding: 8px 12px; background: #ffb703; color: #1b1404; font-weight: 700; cursor: pointer; }
-    .shop, #board-box { display: none; position: fixed; right: 12px; top: 58px; z-index: 4; width: min(340px, calc(100vw - 24px)); background: rgba(10,16,14,.92); border: 1px solid rgba(255,255,255,.14); border-radius: 16px; padding: 12px; pointer-events: auto; }
-    .shop.open { display: grid; gap: 6px; }
-    .shop button, #board-box button { width: 100%; text-align: left; background: #243056; color: #f4f7f2; }
+    .shop { display: none; position: fixed; left: 50%; top: 54px; transform: translateX(-50%); z-index: 5; width: min(520px, calc(100vw - 20px)); max-height: calc(100vh - 90px); overflow: auto; background: rgba(10,16,14,.96); border: 1px solid rgba(255,255,255,.16); border-radius: 18px; padding: 14px; pointer-events: auto; }
+    .shop.open { display: grid; gap: 8px; }
+    .shop h2 { margin: 0 0 4px; font-size: 22px; }
+    .shop button { width: 100%; text-align: left; background: #243056; color: #f4f7f2; padding: 12px 14px; font-size: 16px; }
+    .shop button b { display: block; font-size: 17px; }
+    .shop button small { display: block; margin-top: 3px; color: #d5e6cf; font-weight: 600; }
+    #board-box { display: none; position: fixed; right: 12px; top: 58px; z-index: 4; width: min(280px, calc(100vw - 24px)); background: rgba(10,16,14,.92); border: 1px solid rgba(255,255,255,.14); border-radius: 16px; padding: 12px; pointer-events: auto; }
+    #board-box button { width: 100%; text-align: left; background: #243056; color: #f4f7f2; }
     #board-box ol { margin: 8px 0 0; padding-left: 20px; }
   </style>
 </head>
@@ -45,15 +50,16 @@
     <a href="../../index.html">もどる</a>
   </div>
   <div class="shop" id="shop">
-    <b>強化</b>
-    <button id="up-tip" type="button">鋼の矢じり</button>
-    <button id="up-string" type="button">鋼の弦</button>
-    <button id="up-count" type="button">追加の矢</button>
-    <button id="up-feather" type="button">軽い矢羽</button>
-    <button id="up-quiver" type="button">予備の矢筒</button>
-    <button id="up-auto" type="button">自動装填</button>
-    <button id="up-repair" type="button">城の修理</button>
-    <button id="path" type="button">軌道を表示</button>
+    <h2>強化</h2>
+    <button id="up-tip" type="button"><b>鋼の矢じり</b><small>ダメージ +1</small></button>
+    <button id="up-string" type="button"><b>鋼の弦</b><small>矢の初速が上がる</small></button>
+    <button id="up-count" type="button"><b>追加の矢</b><small>同時に飛ぶ矢が1本増える</small></button>
+    <button id="up-feather" type="button"><b>軽い矢羽</b><small>矢が落ちにくくなる</small></button>
+    <button id="up-quiver" type="button"><b>予備の矢筒</b><small>矢の補充が速くなる</small></button>
+    <button id="up-auto" type="button"><b>自動装填</b><small>撃ったあと次の矢を自動で込める</small></button>
+    <button id="up-repair" type="button"><b>城の修理</b><small>城の体力を4回復</small></button>
+    <button id="path" type="button"><b>軌道</b><small>矢の通る線を表示する</small></button>
+    <button id="shop-close" type="button">閉じる</button>
   </div>
   <div class="hintbar"><div id="hint">コインは袋までドラッグ。</div></div>
   <canvas id="c"></canvas>
@@ -248,13 +254,17 @@
     }
     function costText() {
       const price = (lv, costs) => lv >= costs.length ? "最大" : costs[lv] + "枚";
-      document.getElementById("up-tip").textContent = "鋼の矢じり " + price(arrowLv, arrowCosts) + " / ダメージ+" + (1 + arrowLv);
-      document.getElementById("up-string").textContent = "鋼の弦 " + price(bowLv, bowCosts) + " / 初速アップ";
-      document.getElementById("up-count").textContent = "追加の矢 " + price(countLv, countCosts) + " / 同時" + (1 + countLv) + "本";
-      document.getElementById("up-feather").textContent = "軽い矢羽 " + price(featherLv, featherCosts) + " / 落下を減らす";
-      document.getElementById("up-quiver").textContent = "予備の矢筒 " + price(quiverLv, quiverCosts) + " / 補充が速い";
-      document.getElementById("up-auto").textContent = autoReload ? "自動装填 済み" : "自動装填 " + autoCost + "枚 / 次の矢を自動で込める";
-      document.getElementById("up-repair").textContent = "城の修理 " + repairCost + "枚 / 城+4";
+      const set = (id, name, effect, cost) => {
+        document.getElementById(id).innerHTML = "<b>" + name + "</b><small>" + effect + "　/　" + cost + "</small>";
+      };
+      set("up-tip", "鋼の矢じり", "ダメージ +" + (1 + arrowLv), price(arrowLv, arrowCosts));
+      set("up-string", "鋼の弦", "矢の初速が上がる", price(bowLv, bowCosts));
+      set("up-count", "追加の矢", "同時 " + (1 + countLv) + "本", price(countLv, countCosts));
+      set("up-feather", "軽い矢羽", "矢が落ちにくくなる", price(featherLv, featherCosts));
+      set("up-quiver", "予備の矢筒", "矢の補充が速くなる", price(quiverLv, quiverCosts));
+      set("up-auto", "自動装填", "撃ったあと次の矢を自動で込める", autoReload ? "購入済み" : autoCost + "枚");
+      set("up-repair", "城の修理", "城の体力を4回復", repairCost + "枚");
+      document.getElementById("path").innerHTML = "<b>軌道</b><small>" + (showPath ? "表示中。もう一度で消す" : "矢の通る線を表示する") + "</small>";
     }
     function sync() {
       waveEl.textContent = wave;
@@ -264,7 +274,7 @@
       hpEl.textContent = castle;
       document.getElementById("hp-bar").style.width = Math.max(0, castle / 20 * 100) + "%";
       costText();
-      document.getElementById("path").textContent = showPath ? "軌道を消す" : "軌道を表示";
+      document.getElementById("path").innerHTML = "<b>軌道</b><small>" + (showPath ? "表示中。もう一度で消す" : "矢の通る線を表示する") + "</small>";
       hintEl.textContent = drag
         ? "矢を十字の近くで離すと装填。タップでも選べる。"
         : coinDrag
@@ -450,6 +460,7 @@
     document.getElementById("sound").textContent = soundOn ? "音オン" : "音オフ";
     document.getElementById("board").onclick = showBoard;
     document.getElementById("shop-toggle").onclick = () => document.getElementById("shop").classList.toggle("open");
+    document.getElementById("shop-close").onclick = () => document.getElementById("shop").classList.remove("open");
     document.getElementById("board-close").onclick = () => { document.getElementById("board-box").style.display = "none"; };
     document.getElementById("up-string").onclick = () => buy("string");
     document.getElementById("up-tip").onclick = () => buy("tip");
