@@ -208,16 +208,6 @@
       }
       return pts;
     }
-    function pathPoints() {
-      const gateY = bowPos().y - 36;
-      return [
-        {x: w * 0.5, y: 64},
-        {x: w * 0.66, y: h * 0.24},
-        {x: w * 0.36, y: h * 0.42},
-        {x: w * 0.58, y: h * 0.58},
-        {x: w * 0.5, y: gateY}
-      ];
-    }
     function pathInfo() {
       const pts = pathPoints();
       const lens = [];
