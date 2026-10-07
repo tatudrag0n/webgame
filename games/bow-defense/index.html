@@ -42,7 +42,8 @@
     let w = 1, h = 1, dpr = 1;
     let pointer = {x: 0, y: 0};
     let bolts = [], enemies = [], shots = [], pops = [], coins = [];
-    let loaded = false, drawing = false, power = 0, aim = 0;
+    let loaded = false, drawing = false, power = 0, aim = 0, aimLocked = false;
+    let pullStart = {x: 0, y: 0, aim: 0};
     let purse = 0, castle = 12, wave = 1, spawnLeft = 0, spawnTimer = 0, restock = 0;
     let bowLv = 0, arrowLv = 0;
     let state = "play", drag = null, coinDrag = null;
@@ -69,8 +70,11 @@
     function bagPos() { return {x: 86, y: h - 96}; }
     function aimAtFinger() {
       const b = bowPos();
-      aim = Math.atan2(pointer.x - b.x, b.y - pointer.y);
-      aim = Math.max(-1.05, Math.min(1.05, aim));
+      const dx = pointer.x - pullStart.x;
+      const dy = pointer.y - pullStart.y;
+      if (!aimLocked && dy > 48 && dy > Math.abs(dx) * 1.2) aimLocked = true;
+      if (!aimLocked) aim = Math.max(-0.85, Math.min(0.85, pullStart.aim + dx / 340));
+      if (aimLocked) power = Math.max(0, Math.min(1, (dy - 20) / 150));
     }
     function pathPoints() {
       const top = 78;
@@ -119,7 +123,7 @@
     function reset() {
       bolts = Array.from({length: 6}, (_, i) => ({id: i + 1}));
       enemies = []; shots = []; pops = []; coins = [];
-      loaded = false; drawing = false; power = 0; aim = 0; drag = null; coinDrag = null;
+      loaded = false; drawing = false; power = 0; aim = 0; aimLocked = false; drag = null; coinDrag = null;
       purse = 0; castle = 12; wave = 1; bowLv = 0; arrowLv = 0;
       spawnLeft = 7; spawnTimer = 0.7; restock = 0; state = "play";
       sync();
@@ -138,8 +142,8 @@
       hintEl.textContent = coinDrag
         ? "コインを左下の袋まで運んで離す。"
         : loaded
-        ? "位置は固定。指の左右でクロスボウの向きだけ変わる。下に引いて離すと発射。"
-        : "右の矢をクロスボウへ。落ちたコインは左下の袋までドラッグ。";
+        ? "先に左右へスライドして照準。向きが決まったら下へ引いて離す。"
+        : "右の矢をクロスボウへ。照準は弓を左右にスライド。";
     }
     function buy(kind) {
       const costs = kind === "bow" ? bowCosts : arrowCosts;
@@ -184,9 +188,11 @@
       }
       const b = bowPos();
       if (drag && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 150) return;
-      if (!drag && !coinDrag && loaded && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 150) {
+      if (!drag && !coinDrag && loaded && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 170) {
         drawing = true;
-        aimAtFinger();
+        aimLocked = false;
+        power = 0;
+        pullStart = {x: pointer.x, y: pointer.y, aim};
         ev.preventDefault();
       }
     }
@@ -227,8 +233,9 @@
         if (onBow) loadFromDrag();
         else sync();
       } else if (drawing) {
-        if (power > 0.2) fire();
+        if (aimLocked && power > 0.28) fire();
         drawing = false;
+        aimLocked = false;
         power = 0;
       }
     }
@@ -362,6 +369,14 @@
         ctx.fillRect(b.x - 16, b.y - 20, 32, 90);
       }
       if (loaded || drawing) drawSprite(sprites.bolt, b.x + Math.sin(aim) * (8 + pull), b.y - 36 + pull, 28, 150, aim);
+      const ang = -Math.PI / 2 + aim;
+      ctx.strokeStyle = aimLocked ? "rgba(255,210,90,.35)" : "rgba(255,255,255,.28)";
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(b.x + Math.cos(ang) * 70, b.y + Math.sin(ang) * 70);
+      ctx.lineTo(b.x + Math.cos(ang) * 280, b.y + Math.sin(ang) * 280);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
     function drawBolt(x, y) {
       if (!drawSprite(sprites.bolt, x, y, 22, 78, 0)) {
