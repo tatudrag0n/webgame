@@ -2,159 +2,159 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>弓のタワーディフェンス</title>
   <style>
-    :root { --bg:#102018; --ink:#f4f7f2; --muted:#b7c7b4; --accent:#ffb703; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; min-height: 100vh; display: grid; place-items: center;
-      font-family: "Segoe UI", "Hiragino Sans", sans-serif; color: var(--ink); background: var(--bg);
+    html, body { margin: 0; height: 100%; background: #102018; overflow: hidden; }
+    body { font-family: "Segoe UI", "Hiragino Sans", sans-serif; color: #f4f7f2; }
+    canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+    .hud {
+      position: fixed; left: 16px; right: 16px; top: 12px;
+      display: flex; justify-content: space-between; gap: 12px; align-items: center;
+      pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.45);
     }
-    .wrap { width: min(960px, 100%); padding: 12px; }
-    header { display: flex; justify-content: space-between; gap: 12px; align-items: end; margin-bottom: 8px; }
-    h1 { margin: 0; font-size: 24px; }
-    .stats { color: var(--muted); font-size: 14px; }
-    .stats b { color: var(--ink); }
-    canvas { width: 100%; height: auto; background: #183024; border-radius: 16px; touch-action: none; display: block; }
-    .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+    a, button { pointer-events: auto; }
+    a { color: #d7ffb8; }
     button {
-      border: 0; border-radius: 12px; padding: 10px 14px; background: #245038; color: white; cursor: pointer; font-weight: 700;
+      border: 0; border-radius: 12px; padding: 8px 12px; background: #ffb703; color: #1b1404; font-weight: 700; cursor: pointer;
     }
-    button.on { background: var(--accent); color: #1b1404; }
-    a { color: #8fd18a; margin-left: auto; }
-    .help { color: var(--muted); font-size: 13px; }
+    .hint {
+      position: fixed; left: 0; right: 0; bottom: 12px; text-align: center;
+      color: #d5e6cf; font-size: 14px; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.5);
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>弓のタワーディフェンス</h1>
-        <div class="help">自分の弓でスライムを止めよう。コインで見張り台も置ける。</div>
-      </div>
-      <div class="stats">ウェーブ <b id="wave">1</b> / 8　コイン <b id="gold">40</b>　城 <b id="hp">20</b></div>
-    </header>
-    <canvas id="c" width="960" height="540"></canvas>
-    <div class="bar">
-      <button id="bow" class="on" type="button">弓でねらう</button>
-      <button id="tower" type="button">見張り台を置く（40）</button>
-      <button id="again" type="button">はじめから</button>
-      <a href="../../index.html">もどる</a>
-    </div>
+  <div class="hud">
+    <div>ウェーブ <b id="wave">1</b>　得点 <b id="score">0</b>　城 <b id="hp">12</b></div>
+    <div><button id="again" type="button">はじめから</button>　<a href="../../index.html">もどる</a></div>
   </div>
+  <canvas id="c"></canvas>
+  <div class="hint" id="hint">左の矢をクロスボウまでドラッグして装填。弦を下に引いて離すと発射。</div>
   <script>
     const canvas = document.getElementById("c");
     const ctx = canvas.getContext("2d");
-    const goldEl = document.getElementById("gold");
     const waveEl = document.getElementById("wave");
+    const scoreEl = document.getElementById("score");
     const hpEl = document.getElementById("hp");
-    const path = [
-      {x: -30, y: 150}, {x: 210, y: 150}, {x: 210, y: 340},
-      {x: 470, y: 340}, {x: 470, y: 170}, {x: 730, y: 170},
-      {x: 730, y: 390}, {x: 990, y: 390}
-    ];
-    const slots = [
-      {x: 120, y: 250}, {x: 300, y: 250}, {x: 300, y: 420},
-      {x: 390, y: 240}, {x: 560, y: 250}, {x: 620, y: 110},
-      {x: 820, y: 270}, {x: 820, y: 470}
-    ];
-    const segLens = [];
-    let pathLen = 0;
-    for (let i = 0; i < path.length - 1; i++) {
-      const len = Math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y);
-      segLens.push(len);
-      pathLen += len;
-    }
-    function pointAt(dist) {
-      let left = dist;
-      for (let i = 0; i < segLens.length; i++) {
-        if (left <= segLens[i]) {
-          const t = left / segLens[i];
-          return {
-            x: path[i].x + (path[i + 1].x - path[i].x) * t,
-            y: path[i].y + (path[i + 1].y - path[i].y) * t
-          };
-        }
-        left -= segLens[i];
-      }
-      return {...path[path.length - 1]};
-    }
-    let gold = 40, castle = 20, wave = 1, mode = "bow";
-    let enemies = [], arrows = [], towers = [], pops = [];
-    let spawnLeft = 0, spawnTimer = 0, pointer = {x: 700, y: 200}, shooting = false, cool = 0;
-    let state = "play", archer = {x: 480, y: 500};
+    const hintEl = document.getElementById("hint");
+    let w = 1, h = 1, dpr = 1;
+    let pointer = {x: 0, y: 0, down: false};
+    let bolts = [], enemies = [], shots = [], pops = [];
+    let loaded = false, drawing = false, power = 0, aim = 0;
+    let goldScore = 0, castle = 12, wave = 1, spawnLeft = 0, spawnTimer = 0, restock = 0;
+    let state = "play", drag = null, holdStart = null;
 
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = window.innerWidth;
+      h = window.innerHeight;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function bow() { return {x: w * 0.5, y: h - 118}; }
+    function rackBolts() {
+      const list = [];
+      bolts.forEach((b, i) => list.push({...b, x: 58 + (i % 4) * 28, y: h - 78 - Math.floor(i / 4) * 18, i}));
+      return list;
+    }
     function reset() {
-      gold = 40; castle = 20; wave = 1; mode = "bow";
-      enemies = []; arrows = []; towers = []; pops = [];
-      spawnLeft = 6; spawnTimer = 0.4; cool = 0; state = "play";
-      setMode("bow");
+      bolts = Array.from({length: 8}, (_, i) => ({id: i}));
+      enemies = []; shots = []; pops = [];
+      loaded = false; drawing = false; power = 0; aim = 0; drag = null;
+      goldScore = 0; castle = 12; wave = 1;
+      spawnLeft = 7; spawnTimer = 0.8; restock = 0; state = "play";
       sync();
     }
     function sync() {
-      goldEl.textContent = gold;
       waveEl.textContent = wave;
+      scoreEl.textContent = goldScore;
       hpEl.textContent = castle;
+      hintEl.textContent = loaded
+        ? "弦を下へ引いて、離すと発射。左右でねらいを変える。"
+        : "左の矢をクロスボウまでドラッグして装填。";
     }
-    function setMode(next) {
-      mode = next;
-      document.getElementById("bow").classList.toggle("on", mode === "bow");
-      document.getElementById("tower").classList.toggle("on", mode === "tower");
-    }
-    function spawnEnemy() {
-      const tough = wave > 4 && Math.random() < 0.35;
+    function spawn() {
+      const tough = wave > 3 && Math.random() < 0.3;
       enemies.push({
-        dist: 0,
-        hp: (tough ? 7 : 3) + wave,
-        max: (tough ? 7 : 3) + wave,
-        speed: tough ? 34 : 48 + wave * 2,
-        gold: tough ? 12 : 6,
-        r: tough ? 18 : 14,
-        color: tough ? "#67b7e8" : "#7bd389"
+        x: 80 + Math.random() * (w - 160),
+        y: -30,
+        r: tough ? 26 : 18,
+        hp: (tough ? 4 : 2) + Math.floor(wave / 2),
+        max: (tough ? 4 : 2) + Math.floor(wave / 2),
+        vy: (tough ? 38 : 56) + wave * 4,
+        sway: Math.random() * 40,
+        phase: Math.random() * 6,
+        color: tough ? "#79c0ea" : "#86d98a",
+        score: tough ? 20 : 10
       });
     }
-    function shoot(from, target, damage, speed) {
-      const ang = Math.atan2(target.y - from.y, target.x - from.x);
-      arrows.push({x: from.x, y: from.y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, damage, life: 1.4});
-    }
-    function nearest(x, y, range) {
-      let best = null, bestD = range;
-      for (const e of enemies) {
-        const p = pointAt(e.dist);
-        const d = Math.hypot(p.x - x, p.y - y);
-        if (d < bestD) { best = p; bestD = d; }
-      }
-      return best;
-    }
-    function canvasPos(ev) {
+    function pos(ev) {
       const r = canvas.getBoundingClientRect();
-      const src = ev.touches ? ev.touches[0] : ev;
-      return {x: (src.clientX - r.left) * canvas.width / r.width, y: (src.clientY - r.top) * canvas.height / r.height};
+      const s = ev.touches ? ev.touches[0] : ev;
+      return {x: s.clientX - r.left, y: s.clientY - r.top};
     }
-    function placeAt(pos) {
-      const slot = slots.find(s => !s.tower && Math.hypot(s.x - pos.x, s.y - pos.y) < 28);
-      if (!slot || gold < 40 || state !== "play") return;
-      gold -= 40;
-      slot.tower = {cool: 0};
-      towers.push(slot);
+    function onDown(ev) {
+      pointer = pos(ev);
+      pointer.down = true;
+      if (state !== "play") return;
+      const rack = rackBolts();
+      const hit = rack.find(b => Math.hypot(b.x - pointer.x, b.y - pointer.y) < 20);
+      if (hit && !loaded) {
+        drag = hit;
+        return;
+      }
+      const b = bow();
+      if (loaded && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 150) {
+        drawing = true;
+        holdStart = {...pointer};
+      }
+    }
+    function onMove(ev) {
+      pointer = pos(ev);
+      pointer.down = true;
+      if (!drawing) return;
+      const b = bow();
+      aim = Math.max(-1.15, Math.min(1.15, (pointer.x - b.x) / 220));
+      power = Math.max(0, Math.min(1, (pointer.y - (b.y - 10)) / 150));
+    }
+    function onUp(ev) {
+      pointer.down = false;
+      if (drag) {
+        const b = bow();
+        if (!loaded && Math.hypot(pointer.x - b.x, pointer.y - (b.y - 20)) < 120) {
+          loaded = true;
+          bolts = bolts.filter(item => item.id !== drag.id);
+        }
+        drag = null;
+        sync();
+      } else if (drawing) {
+        if (power > 0.22) fire();
+        drawing = false;
+        power = 0;
+      }
+    }
+    function fire() {
+      const b = bow();
+      const ang = -Math.PI / 2 + aim;
+      const speed = 520 + power * 760;
+      shots.push({
+        x: b.x + Math.cos(ang) * 46,
+        y: b.y + Math.sin(ang) * 46,
+        vx: Math.cos(ang) * speed,
+        vy: Math.sin(ang) * speed,
+        life: 2.4
+      });
+      loaded = false;
+      power = 0;
       sync();
     }
-    function down(ev) {
-      pointer = canvasPos(ev);
-      if (state !== "play") return;
-      if (mode === "tower") placeAt(pointer);
-      else shooting = true;
-    }
-    function move(ev) { pointer = canvasPos(ev); }
-    function up() { shooting = false; }
-    canvas.addEventListener("pointerdown", down);
-    canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", up);
-    canvas.addEventListener("pointerleave", up);
-    document.getElementById("bow").onclick = () => setMode("bow");
-    document.getElementById("tower").onclick = () => setMode("tower");
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
     document.getElementById("again").onclick = reset;
+    window.addEventListener("resize", resize);
 
     let last = performance.now();
     function frame(now) {
@@ -165,166 +165,198 @@
       requestAnimationFrame(frame);
     }
     function update(dt) {
+      if (bolts.length < 6) {
+        restock -= dt;
+        if (restock <= 0) {
+          bolts.push({id: Math.random()});
+          restock = 0.85;
+        }
+      }
       if (spawnLeft > 0) {
         spawnTimer -= dt;
         if (spawnTimer <= 0) {
-          spawnEnemy();
+          spawn();
           spawnLeft -= 1;
-          spawnTimer = Math.max(0.45, 1.05 - wave * 0.06);
+          spawnTimer = Math.max(0.35, 1.05 - wave * 0.07);
         }
-      } else if (!enemies.length && wave < 8) {
-        wave += 1;
-        spawnLeft = 5 + wave;
-        spawnTimer = 1.2;
-        gold += 10;
-        sync();
-      } else if (!enemies.length && wave >= 8 && !arrows.length) {
-        state = "win";
+      } else if (!enemies.length && !shots.length) {
+        if (wave >= 8) state = "win";
+        else {
+          wave += 1;
+          spawnLeft = 6 + wave;
+          spawnTimer = 1.3;
+          sync();
+        }
       }
-      for (const e of enemies) e.dist += e.speed * dt;
-      const leaked = enemies.filter(e => e.dist >= pathLen);
+      enemies.forEach(e => {
+        e.y += e.vy * dt;
+        e.x += Math.sin(e.y / 50 + e.phase) * e.sway * dt;
+        e.x = Math.max(e.r, Math.min(w - e.r, e.x));
+      });
+      const leaked = enemies.filter(e => e.y > h - 70);
       if (leaked.length) {
         castle -= leaked.length;
-        enemies = enemies.filter(e => e.dist < pathLen);
+        enemies = enemies.filter(e => e.y <= h - 70);
         sync();
         if (castle <= 0) { castle = 0; state = "lose"; sync(); }
       }
-      cool -= dt;
-      if (shooting && cool <= 0 && mode === "bow") {
-        archer.x += (pointer.x - archer.x) * 0.35;
-        archer.x = Math.max(70, Math.min(890, archer.x));
-        shoot(archer, pointer, 2, 520);
-        cool = 0.28;
-      } else {
-        archer.x += ((mode === "bow" ? pointer.x : archer.x) - archer.x) * 0.08;
-      }
-      for (const slot of towers) {
-        slot.tower.cool -= dt;
-        const target = nearest(slot.x, slot.y - 18, 150);
-        if (target && slot.tower.cool <= 0) {
-          shoot({x: slot.x, y: slot.y - 18}, target, 1, 360);
-          slot.tower.cool = 0.7;
-        }
-      }
-      for (const a of arrows) {
-        a.x += a.vx * dt; a.y += a.vy * dt; a.life -= dt;
+      shots.forEach(s => {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.vy += 280 * dt;
+        s.life -= dt;
         for (const e of enemies) {
           if (e.hp <= 0) continue;
-          const p = pointAt(e.dist);
-          if (Math.hypot(p.x - a.x, p.y - a.y) < e.r + 4) {
-            e.hp -= a.damage;
-            a.life = 0;
-            pops.push({x: p.x, y: p.y, life: 0.25});
-            if (e.hp <= 0) gold += e.gold;
-            break;
+          if (Math.hypot(e.x - s.x, e.y - s.y) < e.r + 6) {
+            e.hp -= 1;
+            s.life = 0;
+            pops.push({x: e.x, y: e.y, life: 0.28});
+            if (e.hp <= 0) goldScore += e.score;
           }
         }
-      }
-      arrows = arrows.filter(a => a.life > 0 && a.x > -40 && a.x < 1000 && a.y > -40 && a.y < 580);
+      });
+      shots = shots.filter(s => s.life > 0 && s.y < h + 40 && s.x > -40 && s.x < w + 40);
       const before = enemies.length;
       enemies = enemies.filter(e => e.hp > 0);
       if (enemies.length !== before) sync();
       pops.forEach(p => p.life -= dt);
       pops = pops.filter(p => p.life > 0);
     }
-    function drawPath() {
-      ctx.lineCap = "round"; ctx.lineJoin = "round";
-      ctx.strokeStyle = "#c8b27a"; ctx.lineWidth = 46;
-      ctx.beginPath();
-      path.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-      ctx.stroke();
-      ctx.strokeStyle = "#e6d7ad"; ctx.lineWidth = 8;
-      ctx.setLineDash([14, 12]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#1d4634";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      drawPath();
-      ctx.fillStyle = "#d7c08a";
-      ctx.fillRect(900, 350, 60, 80);
-      ctx.fillStyle = "#8d5a34";
-      ctx.fillRect(912, 392, 22, 38);
-      ctx.fillStyle = "#f4f7f2";
-      ctx.font = "14px sans-serif";
-      ctx.fillText("城", 916, 344);
-      slots.forEach(s => {
-        ctx.beginPath();
-        ctx.fillStyle = s.tower ? "#6b4a2a" : "rgba(255,255,255,.16)";
-        ctx.arc(s.x, s.y, 18, 0, Math.PI * 2);
-        ctx.fill();
-        if (s.tower) {
-          ctx.fillStyle = "#c9844a";
-          ctx.fillRect(s.x - 8, s.y - 28, 16, 22);
-          ctx.fillStyle = "#f4f7f2";
-          ctx.fillRect(s.x - 14, s.y - 32, 28, 6);
-        }
-      });
-      enemies.forEach(e => {
-        const p = pointAt(e.dist);
-        ctx.fillStyle = e.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, e.r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#173024";
-        ctx.beginPath();
-        ctx.arc(p.x - 4, p.y - 2, 2, 0, Math.PI * 2);
-        ctx.arc(p.x + 4, p.y - 2, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#203828";
-        ctx.fillRect(p.x - 12, p.y - e.r - 8, 24, 4);
-        ctx.fillStyle = "#ffb703";
-        ctx.fillRect(p.x - 12, p.y - e.r - 8, 24 * Math.max(0, e.hp / e.max), 4);
-      });
-      arrows.forEach(a => {
-        ctx.strokeStyle = "#f4e2b0";
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(a.x - a.vx * 0.03, a.y - a.vy * 0.03);
-        ctx.stroke();
-      });
-      pops.forEach(p => {
-        ctx.fillStyle = `rgba(255, 220, 120, ${p.life * 3})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      const ang = Math.atan2(pointer.y - archer.y, pointer.x - archer.x);
+    function drawBow() {
+      const b = bow();
+      const ang = -Math.PI / 2 + aim;
       ctx.save();
-      ctx.translate(archer.x, archer.y);
-      ctx.rotate(ang);
-      ctx.strokeStyle = "#8d5a34";
-      ctx.lineWidth = 4;
+      ctx.translate(b.x, b.y);
+      ctx.rotate(ang + Math.PI / 2);
+      const pull = drawing ? power * 78 : 0;
+      ctx.fillStyle = "#6a4328";
+      ctx.fillRect(-16, -20, 32, 92);
+      ctx.fillStyle = "#8b5a34";
+      ctx.fillRect(-46, 40, 92, 22);
+      ctx.strokeStyle = "#d7c08a";
+      ctx.lineWidth = 10;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.arc(0, 0, 16, -1.1, 1.1);
+      ctx.moveTo(-120, -8);
+      ctx.quadraticCurveTo(0, -70, 120, -8);
       ctx.stroke();
       ctx.strokeStyle = "#f4f7f2";
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(-1.1) * 16, Math.sin(-1.1) * 16);
-      ctx.lineTo(18, 0);
-      ctx.lineTo(Math.cos(1.1) * 16, Math.sin(1.1) * 16);
+      ctx.moveTo(-112, -6);
+      ctx.lineTo(0, 18 + pull);
+      ctx.lineTo(112, -6);
       ctx.stroke();
+      if (loaded || drawing) {
+        ctx.strokeStyle = "#f0d48a";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(0, 18 + pull);
+        ctx.lineTo(0, -34);
+        ctx.stroke();
+        ctx.fillStyle = "#c9e6ff";
+        ctx.beginPath();
+        ctx.moveTo(0, -42);
+        ctx.lineTo(-7, -28);
+        ctx.lineTo(7, -28);
+        ctx.fill();
+      }
       ctx.restore();
       ctx.fillStyle = "#f2d2a2";
       ctx.beginPath();
-      ctx.arc(archer.x, archer.y, 10, 0, Math.PI * 2);
+      ctx.arc(b.x, b.y + 58, 16, 0, Math.PI * 2);
       ctx.fill();
+    }
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, "#16364a");
+      sky.addColorStop(1, "#1d4634");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#214c38";
+      ctx.fillRect(0, h - 70, w, 70);
+      ctx.fillStyle = "#c8b27a";
+      ctx.fillRect(0, h - 76, w, 8);
+      enemies.forEach(e => {
+        ctx.fillStyle = e.color;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#173024";
+        ctx.beginPath();
+        ctx.arc(e.x - 5, e.y - 3, 2.4, 0, Math.PI * 2);
+        ctx.arc(e.x + 5, e.y - 3, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#203828";
+        ctx.fillRect(e.x - 14, e.y - e.r - 8, 28, 4);
+        ctx.fillStyle = "#ffb703";
+        ctx.fillRect(e.x - 14, e.y - e.r - 8, 28 * Math.max(0, e.hp / e.max), 4);
+      });
+      shots.forEach(s => {
+        ctx.strokeStyle = "#f4e2b0";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x - s.vx * 0.03, s.y - s.vy * 0.03);
+        ctx.stroke();
+      });
+      pops.forEach(p => {
+        ctx.fillStyle = `rgba(255, 224, 130, ${p.life * 3})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = "rgba(255,255,255,.12)";
+      ctx.fillRect(24, h - 132, 150, 78);
+      rackBolts().forEach(b => {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.strokeStyle = "#f0d48a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 12);
+        ctx.lineTo(0, -12);
+        ctx.stroke();
+        ctx.fillStyle = "#c9e6ff";
+        ctx.beginPath();
+        ctx.moveTo(0, -16);
+        ctx.lineTo(-5, -6);
+        ctx.lineTo(5, -6);
+        ctx.fill();
+        ctx.restore();
+      });
+      if (drag) {
+        ctx.save();
+        ctx.translate(pointer.x, pointer.y);
+        ctx.strokeStyle = "#fff1b8";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(0, 14);
+        ctx.lineTo(0, -16);
+        ctx.stroke();
+        ctx.fillStyle = "#c9e6ff";
+        ctx.beginPath();
+        ctx.moveTo(0, -22);
+        ctx.lineTo(-6, -8);
+        ctx.lineTo(6, -8);
+        ctx.fill();
+        ctx.restore();
+      }
+      drawBow();
       if (state !== "play") {
-        ctx.fillStyle = "rgba(8, 16, 12, .62)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgba(8,16,12,.6)";
+        ctx.fillRect(0, 0, w, h);
         ctx.fillStyle = "#fff";
         ctx.textAlign = "center";
-        ctx.font = "bold 36px sans-serif";
-        ctx.fillText(state === "win" ? "城を守りきった！" : "城に入られてしまった", canvas.width / 2, canvas.height / 2);
+        ctx.font = "bold 40px sans-serif";
+        ctx.fillText(state === "win" ? "守りきった！" : "城まで来てしまった", w / 2, h / 2);
         ctx.font = "18px sans-serif";
-        ctx.fillText("「はじめから」でもう一度", canvas.width / 2, canvas.height / 2 + 36);
+        ctx.fillText("「はじめから」でもう一度", w / 2, h / 2 + 36);
         ctx.textAlign = "left";
       }
     }
+    resize();
     reset();
     requestAnimationFrame(frame);
   </script>
