@@ -23,7 +23,7 @@
 </head>
 <body>
   <div class="hud">
-    <div>ウェーブ <b id="wave">1</b>　得点 <b id="score">0</b>　城 <b id="hp">12</b><div id="hint">左の矢をクロスボウまでドラッグして装填。</div></div>
+    <div>ウェーブ <b id="wave">1</b>　得点 <b id="score">0</b>　城 <b id="hp">12</b><div id="hint">左の丸い矢をつかんで、クロスボウまで運ぶ。</div></div>
     <div><button id="again" type="button">はじめから</button>　<a href="../../index.html">もどる</a></div>
   </div>
   <canvas id="c"></canvas>
@@ -90,8 +90,8 @@
       const b = bowPos();
       return bolts.map((bolt, i) => ({
         ...bolt,
-        x: 64 + (i % 3) * 34,
-        y: b.y - 36 + Math.floor(i / 3) * 32
+        x: 78 + (i % 3) * 46,
+        y: b.y - 34 + Math.floor(i / 3) * 46
       }));
     }
     function reset() {
@@ -108,7 +108,7 @@
       hpEl.textContent = castle;
       hintEl.textContent = loaded
         ? "弦を下へ引いて離すと発射。左右でねらいを変える。"
-        : "左の矢をクロスボウまでドラッグして装填。";
+        : "左の大きな矢をつかんで、クロスボウまで運ぶ。矢をタップしてから弓をタップでも装填できる。";
     }
     function spawn() {
       const tough = wave > 3 && Math.random() < 0.34;
@@ -124,33 +124,51 @@
     }
     function eventPos(ev) {
       const r = canvas.getBoundingClientRect();
-      const s = ev.touches ? ev.touches[0] : ev;
+      const s = ev.clientX !== undefined ? ev : (ev.touches && ev.touches[0]);
+      if (!s) return pointer;
       return {x: s.clientX - r.left, y: s.clientY - r.top};
     }
     function onDown(ev) {
       pointer = eventPos(ev);
       if (state !== "play") return;
-      const hit = rackBolts().find(b => Math.hypot(b.x - pointer.x, b.y - pointer.y) < 24);
-      if (hit && !loaded) { drag = hit; return; }
+      if (canvas.setPointerCapture && ev.pointerId !== undefined) {
+        try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+      }
+      const hit = rackBolts().find(b => Math.hypot(b.x - pointer.x, b.y - pointer.y) < 42);
+      if (hit && !loaded) {
+        drag = hit;
+        ev.preventDefault();
+        return;
+      }
       const b = bowPos();
-      if (loaded && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 130) drawing = true;
+      if (drag && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 150) return;
+      if (!drag && loaded && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 150) {
+        drawing = true;
+        ev.preventDefault();
+      }
     }
     function onMove(ev) {
       pointer = eventPos(ev);
+      if (drag) ev.preventDefault();
       if (!drawing) return;
       const b = bowPos();
       aim = Math.max(-1.05, Math.min(1.05, (pointer.x - b.x) / 200));
       power = Math.max(0, Math.min(1, (pointer.y - b.y) / 130));
     }
-    function onUp() {
+    function loadFromDrag() {
+      if (!drag || loaded) return;
+      loaded = true;
+      bolts = bolts.filter(item => item.id !== drag.id);
+      drag = null;
+      sync();
+    }
+    function onUp(ev) {
+      if (ev && ev.clientX !== undefined) pointer = eventPos(ev);
       if (drag) {
         const b = bowPos();
-        if (!loaded && Math.hypot(pointer.x - b.x, pointer.y - b.y) < 120) {
-          loaded = true;
-          bolts = bolts.filter(item => item.id !== drag.id);
-        }
-        drag = null;
-        sync();
+        const onBow = Math.hypot(pointer.x - b.x, pointer.y - b.y) < 160;
+        if (onBow) loadFromDrag();
+        else sync();
       } else if (drawing) {
         if (power > 0.2) fire();
         drawing = false;
@@ -172,8 +190,9 @@
       sync();
     }
     canvas.addEventListener("pointerdown", onDown);
-    canvas.addEventListener("pointermove", onMove);
+    window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     document.getElementById("again").onclick = reset;
     window.addEventListener("resize", resize);
 
@@ -336,8 +355,16 @@
       drawPath();
       const b = bowPos();
       ctx.fillStyle = "rgba(255,255,255,.12)";
-      ctx.fillRect(36, b.y - 62, 130, 110);
-      rackBolts().forEach(bolt => drawBolt(bolt.x, bolt.y, "#f0d48a"));
+      ctx.fillRect(28, b.y - 78, 168, 132);
+      ctx.strokeStyle = "rgba(255,255,255,.35)";
+      ctx.strokeRect(28, b.y - 78, 168, 132);
+      rackBolts().forEach(bolt => {
+        ctx.fillStyle = "rgba(255,255,255,.16)";
+        ctx.beginPath();
+        ctx.arc(bolt.x, bolt.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        drawBolt(bolt.x, bolt.y, "#f0d48a");
+      });
       enemies.forEach(e => {
         const p = pointAt(e.dist);
         ctx.fillStyle = e.color;
