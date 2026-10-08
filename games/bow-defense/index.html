@@ -157,13 +157,11 @@
     function pathPoints() {
       const gateY = bowPos().y - 24;
       return [
-        {x: w * 0.5, y: 52},
-        {x: w * 0.58, y: h * 0.16},
-        {x: w * 0.34, y: h * 0.28},
-        {x: w * 0.68, y: h * 0.4},
-        {x: w * 0.3, y: h * 0.52},
-        {x: w * 0.62, y: h * 0.64},
-        {x: w * 0.46, y: gateY}
+        {x: w * 0.5, y: 48},
+        {x: w * 0.57, y: h * 0.2},
+        {x: w * 0.4, y: h * 0.38},
+        {x: w * 0.56, y: h * 0.56},
+        {x: w * 0.48, y: gateY}
       ];
     }
     function bagPos() { return {x: 78, y: Math.max(150, h * 0.38)}; }
@@ -551,30 +549,55 @@
     function drawPath() {
       const {total} = pathInfo();
       const samples = [];
-      for (let d = 0; d <= total; d += 8) samples.push(pointAt(d));
-      const road = sprites.road;
+      for (let d = 0; d <= total; d += 6) samples.push(pointAt(d));
+      const left = [], right = [];
       samples.forEach((p, i) => {
-        if (!i) return;
-        const a = samples[i - 1];
-        const ang = Math.atan2(p.y - a.y, p.x - a.x) + Math.PI / 2;
-        const wroad = pathWidth(p.y) * 1.35;
-        const len = Math.hypot(p.x - a.x, p.y - a.y) + 2;
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(ang);
-        if (road.complete && road.naturalWidth) ctx.drawImage(road, -wroad / 2, -len, wroad, len + 4);
-        else {
-          ctx.fillStyle = "#8d6844";
-          ctx.fillRect(-wroad / 2, -len, wroad, len + 4);
-        }
-        ctx.restore();
+        const a = samples[Math.max(0, i - 1)];
+        const b = samples[Math.min(samples.length - 1, i + 1)];
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        const nx = -(b.y - a.y) / len;
+        const ny = (b.x - a.x) / len;
+        const hw = pathWidth(p.y) / 2;
+        left.push({x: p.x + nx * hw, y: p.y + ny * hw});
+        right.push({x: p.x - nx * hw, y: p.y - ny * hw});
       });
+      const poly = () => {
+        ctx.beginPath();
+        left.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
+        ctx.closePath();
+      };
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,.4)";
+      ctx.shadowBlur = 16;
+      poly();
+      ctx.fillStyle = "#5f7d45";
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      poly();
+      ctx.clip();
+      const road = sprites.road;
+      if (road.complete && road.naturalWidth) {
+        const top = samples[0].y;
+        const bot = samples[samples.length - 1].y;
+        ctx.drawImage(road, w * 0.18, top, w * 0.64, Math.max(40, bot - top));
+      } else {
+        ctx.fillStyle = "#8d6844";
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.strokeStyle = "rgba(60,42,24,.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      samples.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.stroke();
       const gate = samples[samples.length - 1];
       const gw = pathWidth(gate.y);
       ctx.fillStyle = "#b7b1a6";
-      ctx.fillRect(gate.x - gw * 0.7, gate.y - 18, gw * 1.4, 46);
+      ctx.fillRect(gate.x - gw * 0.55, gate.y - 10, gw * 1.1, 36);
       ctx.fillStyle = "#6d5844";
-      ctx.fillRect(gate.x - gw * 0.22, gate.y - 4, gw * 0.44, 32);
+      ctx.fillRect(gate.x - gw * 0.18, gate.y, gw * 0.36, 26);
     }
     function drawWall() {
       const y = h - 54;
