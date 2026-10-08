@@ -144,6 +144,8 @@
     });
     sprites.bg = new Image();
     sprites.bg.src = "img/bg.jpg";
+    sprites.road = new Image();
+    sprites.road.src = "img/road.png";
     function bowPos() {
       return {x: w * 0.5, y: Math.min(h - 170, h * 0.78)};
     }
@@ -549,52 +551,24 @@
     function drawPath() {
       const {total} = pathInfo();
       const samples = [];
-      for (let d = 0; d <= total; d += 10) samples.push(pointAt(d));
-      const left = [], right = [];
+      for (let d = 0; d <= total; d += 8) samples.push(pointAt(d));
+      const road = sprites.road;
       samples.forEach((p, i) => {
-        const a = samples[Math.max(0, i - 1)];
-        const b = samples[Math.min(samples.length - 1, i + 1)];
-        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-        const nx = -(b.y - a.y) / len;
-        const ny = (b.x - a.x) / len;
-        const hw = pathWidth(p.y) / 2;
-        left.push({x: p.x + nx * hw, y: p.y + ny * hw});
-        right.push({x: p.x - nx * hw, y: p.y - ny * hw});
-      });
-      const ribbon = (inset, color) => {
-        ctx.beginPath();
-        left.forEach((p, i) => {
-          const q = right[i];
-          const x = (p.x + q.x) / 2 + (p.x - q.x) / 2 * inset;
-          const y = (p.y + q.y) / 2 + (p.y - q.y) / 2 * inset;
-          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-        });
-        for (let i = right.length - 1; i >= 0; i--) {
-          const p = left[i], q = right[i];
-          ctx.lineTo((p.x + q.x) / 2 + (q.x - p.x) / 2 * inset, (p.y + q.y) / 2 + (q.y - p.y) / 2 * inset);
+        if (!i) return;
+        const a = samples[i - 1];
+        const ang = Math.atan2(p.y - a.y, p.x - a.x) + Math.PI / 2;
+        const wroad = pathWidth(p.y) * 1.35;
+        const len = Math.hypot(p.x - a.x, p.y - a.y) + 2;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(ang);
+        if (road.complete && road.naturalWidth) ctx.drawImage(road, -wroad / 2, -len, wroad, len + 4);
+        else {
+          ctx.fillStyle = "#8d6844";
+          ctx.fillRect(-wroad / 2, -len, wroad, len + 4);
         }
-        ctx.closePath();
-        ctx.fillStyle = color;
-        ctx.fill();
-      };
-      ribbon(1.55, "#3f6b3a");
-      ribbon(1.22, "#5c4630");
-      ribbon(1, "#8d6844");
-      ribbon(0.55, "#c4a06a");
-      samples.forEach((p, i) => {
-        if (i % 4) return;
-        const sc = depthScale(p.y);
-        ctx.fillStyle = i % 8 ? "#6b5340" : "#d9d3c7";
-        ctx.beginPath();
-        ctx.arc(left[i].x, left[i].y, 2 + sc * 5, 0, Math.PI * 2);
-        ctx.arc(right[i].x, right[i].y, 2 + sc * 4, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.restore();
       });
-      ctx.strokeStyle = "rgba(78,59,40,.45)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      samples.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-      ctx.stroke();
       const gate = samples[samples.length - 1];
       const gw = pathWidth(gate.y);
       ctx.fillStyle = "#b7b1a6";
