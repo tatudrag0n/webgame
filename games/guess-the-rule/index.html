@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ルール当て</title>
+  <style>
+    :root { --bg:#0f1220; --ink:#f4f6fb; --muted:#a8b0c7; --accent:#ffb703; --line:#2c334d; }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; min-height:100vh;
+      font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+      color:var(--ink); background:var(--bg);
+      background-image:
+        radial-gradient(900px 420px at 10% -10%, #243056, transparent 60%),
+        radial-gradient(700px 380px at 100% 0%, #3a2a12, transparent 55%),
+        var(--bg);
+    }
+    main { max-width:760px; margin:0 auto; padding:40px 20px 64px; }
+    header { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+    h1 { margin:0; font-size:34px; letter-spacing:0.02em; }
+    .back { color:var(--muted); text-decoration:none; border-bottom:1px solid var(--line); }
+    .back:hover { color:var(--ink); border-color:var(--accent); }
+
+    .card {
+      background:#1b2033;
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:22px;
+      box-shadow:0 20px 50px -20px rgba(0,0,0,.5);
+    }
+    .prompt { color:var(--muted); line-height:1.6; margin:0 0 18px; }
+    .prompt strong { color:var(--ink); }
+
+    .examples { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }
+    .chip {
+      background:#243056; border:1px solid var(--line); border-radius:999px;
+      padding:8px 14px; font-size:14px;
+    }
+    .chip.yes { border-color:var(--accent); color:var(--accent); }
+    .chip.no { opacity:0.7; }
+
+    .input-row { display:flex; gap:10px; margin-top:8px; }
+    input {
+      flex:1; background:#243056; border:1px solid var(--line); color:var(--ink);
+      border-radius:12px; padding:12px 14px; font-size:15px; font-family:inherit;
+    }
+    button {
+      background:var(--accent); color:#1b1404; border:0; border-radius:12px;
+      padding:12px 18px; font-weight:700; font-size:15px; cursor:pointer;
+    }
+    button.ghost {
+      background:transparent; border:1px solid var(--line); color:var(--ink);
+    }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+
+    .history { margin-top:22px; max-height:280px; overflow-y:auto; }
+    .row {
+      display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);
+      font-size:14px; line-height:1.5;
+    }
+    .row .word { flex:1; word-break:break-word; }
+    .verdict { font-weight:700; white-space:nowrap; }
+    .verdict.yes { color:var(--accent); }
+    .verdict.no { color:var(--muted); }
+
+    .hint { margin-top:12px; color:var(--muted); font-size:14px; line-height:1.6; }
+    .status { margin-top:16px; padding:12px 14px; border-radius:12px; background:#243056; color:var(--ink); }
+    .status.win { background:#2f6b45; border:1px solid var(--accent); }
+
+    footer { margin-top:28px; color:var(--muted); font-size:14px; }
+    kbd {
+      background:#243056; border:1px solid var(--line); border-bottom-width:2px;
+      border-radius:6px; padding:2px 7px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:12px;
+    }
+    .next-row { margin-top:14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>ルール当て</h1>
+      <a class="back" href="../index.html">一覧にもどる</a>
+    </header>
+
+    <div class="card">
+      <p class="prompt">
+        コンピュータが<strong>隠しルール</strong>をひとつ決めている。<br>
+        あなたが思いついた言葉を入れると、「そのルールに合うか」を yes / no で教えてくれる。<br>
+        ルールが予測できたら、下の入力欄で答えてね。
+      </p>
+
+      <div class="input-row">
+        <input id="word" type="text" autocomplete="off" placeholder="試したい言葉を入力…" aria-label="試したい言葉">
+        <button id="trial" type="button">確かめる</button>
+      </div>
+
+      <div class="examples" id="examples"></div>
+      <div class="hint" id="hint"></div>
+
+      <div class="input-row" style="margin-top:14px">
+        <input id="answer" type="text" autocomplete="off" placeholder="ルールがわかったら入力…" aria-label="ルール入力">
+        <button id="answerBtn" type="button">答える</button>
+        <button id="giveUp" class="ghost" type="button">ヒントを見る</button>
+      </div>
+
+      <div id="status" class="status" style="display:none"></div>
+      <div class="history" id="history"></div>
+    </div>
+
+    <footer>
+      キーボード: 言葉の確かめは <kbd>Enter</kbd>、ルール回答も <kbd>Enter</kbd>。
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const RULES = [
+        { name:"母音が3つ以上", test:w=>(w.match(/[aeiou]/gi)||[]).length>=3 },
+        { name:"長さが6文字以上", test:w=>w.length>=6 },
+        { name:"「ん」で終わる", test:w=>w.endsWith("ん") },
+        { name:"「あ」を含む", test:w=>w.includes("あ") },
+        { name:"数字を含む", test:w=>/\d/.test(w) },
+        { name:"絵文字を含む", test:w=>/\p{Emoji}/u.test(w) },
+        { name:"回文（2文字以上）", test:w=>{const r=w.split("").reverse().join("");return r===w&&w.length>1;} },
+        { name:"「カ」で始まる", test:w=>w.startsWith("カ") },
+        { name:"「s」で始まる", test:w=>w.toLowerCase().startsWith("s") },
+        { name:"「a」で終わる", test:w=>w.toLowerCase().endsWith("a") },
+        { name:"「き」を含む", test:w=>w.includes("き") },
+        { name:"10文字以上", test:w=>w.length>=10 },
+        { name:"「り」を含む", test:w=>w.includes("り") },
+        { name:"「え」を含む", test:w=>w.includes("え") },
+        { name:"「う」を含む", test:w=>w.includes("う") },
+        { name:"「お」を含む", test:w=>w.includes("お") },
+        { name:"「ん」を含む", test:w=>w.includes("ん") },
+        { name:"「み」を含む", test:w=>w.includes("み") },
+        { name:"「い」を含む", test:w=>w.includes("い") },
+        { name:"「た」を含む", test:w=>w.includes("た") },
+        { name:"「と」を含む", test:w=>w.includes("と") },
+        { name:"「な」を含む", test:w=>w.includes("な") },
+        { name:"「ぬ」を含む", test:w=>w.includes("ぬ") },
+        { name:"「ね」を含む", test:w=>w.includes("ね") },
+        { name:"「は」を含む", test:w=>w.includes("は") },
+        { name:"「ひ」を含む", test:w=>w.includes("ひ") },
+        { name:"「ふ」を含む", test:w=>w.includes("ふ") },
+        { name:"「へ」を含む", test:w=>w.includes("へ") },
+        { name:"「ほ」を含む", test:w=>w.includes("ほ") },
+        { name:"「ま」を含む", test:w=>w.includes("ま") },
+        { name:"「や」を含む", test:w=>w.includes("や") },
+        { name:"「ゆ」を含む", test:w=>w.includes("ゆ") },
+        { name:"「よ」を含む", test:w=>w.includes("よ") },
+        { name:"「ら」を含む", test:w=>w.includes("ら") },
+        { name:"「る」を含む", test:w=>w.includes("る") },
+        { name:"「れ」を含む", test:w=>w.includes("れ") },
+        { name:"「ろ」を含む", test:w=>w.includes("ろ") },
+        { name:"「わ」を含む", test:w=>w.includes("わ") },
+        { name:"「を」を含む", test:w=>w.includes("を") },
+        { name:"ひらがなを含む", test:w=>/[ぁ-ゟ]/.test(w) },
+        { name:"大文字を含む", test:w=>/[A-Z]/.test(w) },
+        { name:"小文字を含む", test:w=>/[a-z]/.test(w) },
+        { name:"特殊文字を含む", test:w=>/[!@#$%^&*()\-_=+\[\]{}|;:'",.<>?/~`]/.test(w) },
+        { name:"空白を含む", test:w=>w.includes(" ") },
+        { name:"感嘆符を含む", test:w=>w.includes("!") || w.includes("！") },
+        { name:"疑問符を含む", test:w=>w.includes("?") || w.includes("？") },
+        { name:"「0」を含む", test:w=>w.includes("0") },
+        { name:"「1」を含む", test:w=>w.includes("1") },
+        { name:"「5」を含む", test:w=>w.includes("5") },
+        { name:"「7」を含む", test:w=>w.includes("7") },
+        { name:"「9」を含む", test:w=>w.includes("9") },
+        { name:"偶数文字", test:w=>w.length%2===0 },
+        { name:"奇数文字", test:w=>w.length%2===1 },
+        { name:"丸括弧を含む", test:w=>w.includes("(")||w.includes("（") },
+        { name:"「・」を含む", test:w=>w.includes("・") },
+        { name:"「ー」を含む", test:w=>w.includes("ー") },
+        { name:"「@」を含む", test:w=>w.includes("@") },
+        { name:"「#」を含む", test:w=>w.includes("#")||w.includes("＃") },
+        { name:"「$」を含む", test:w=>w.includes("$") },
+        { name:"「%」を含む", test:w=>w.includes("%")||w.includes("％") },
+        { name:"「&」を含む", test:w=>w.includes("&")||w.includes("＆") },
+        { name:"「*」を含む", test:w=>w.includes("*")||w.includes("＊") },
+        { name:"「+」を含む", test:w=>w.includes("+")||w.includes("＋") },
+        { name:"「=」を含む", test:w=>w.includes("=")||w.includes("＝") },
+        { name:"「~」を含む", test:w=>w.includes("~")||w.includes("～") },
+        { name:"「`」を含む", test:w=>w.includes("`")||w.includes("｀") },
+        { name:"「\"」を含む", test:w=>w.includes('\"')||w.includes('\uFF02') },
+        { name:"「'」を含む", test:w=>w.includes('\u0027')||w.includes('\uFF07') },
+        { name:"アンダースコアを含む", test:w=>w.includes("_") },
+        { name:"ハイフンを含む", test:w=>w.includes("-")||w.includes("−") },
+        { name:"スラッシュを含む", test:w=>w.includes("/")||w.includes("／") },
+        { name:"「{」を含む", test:w=>w.includes("{")||w.includes("｛") },
+        { name:"「<」を含む", test:w=>w.includes("<")||w.includes("＜") },
+        { name:"感嘆符を含む", test:w=>w.includes("!") },
+        { name:"疑問符を含む", test:w=>w.includes("?") },
+        { name:"数字2つ以上", test:w=>(w.match(/\d/g)||[]).length>=2 },
+        { name:"アルファベット2文字以上", test:w=>(w.match(/[A-Za-z]/g)||[]).length>=2 },
+        { name:"ひらがな3文字以上", test:w=>(w.match(/[ぁ-ゟ]/g)||[]).length>=3 },
+        { name:"「あ」から始まる", test:w=>w.startsWith("あ") },
+        { name:"「か」から始まる", test:w=>w.startsWith("か") },
+        { name:"「さ」から始まる", test:w=>w.startsWith("さ") },
+        { name:"「た」から始まる", test:w=>w.startsWith("た") },
+        { name:"「な」から始まる", test:w=>w.startsWith("な") },
+        { name:"「は」から始まる", test:w=>w.startsWith("は") },
+        { name:"「ま」から始まる", test:w=>w.startsWith("ま") },
+        { name:"「や」から始まる", test:w=>w.startsWith("や") },
+        { name:"「ら」から始まる", test:w=>w.startsWith("ら") },
+        { name:"「わ」から始まる", test:w=>w.startsWith("わ") },
+        { name:"「A」で始まる", test:w=>w.startsWith("A") },
+        { name:"「B」で始まる", test:w=>w.startsWith("B") },
+        { name:"「C」で始まる", test:w=>w.startsWith("C") },
+        { name:"「D」で始まる", test:w=>w.startsWith("D") },
+        { name:"「E」で始まる", test:w=>w.startsWith("E") },
+        { name:"「F」で始まる", test:w=>w.startsWith("F") },
+        { name:"「X」で始まる", test:w=>w.startsWith("X") },
+        { name:"「Z」で始まる", test:w=>w.startsWith("Z") },
+        { name:"「x」で終わる", test:w=>w.toLowerCase().endsWith("x") },
+        { name:"「z」で終わる", test:w=>w.toLowerCase().endsWith("z") }
+      ];
+
+      const EXAMPLES_BY_RULE = {
+        "母音が3つ以上": ["あいうえお","おかあさん","おばあちゃん","あいさつ"],
+        "長さが6文字以上": ["さくらんぼ","たいやき","おばけ","ケータイ"],
+        "「ん」で終わる": ["しんぶんし","てっぽう","はんぶん","こんぶ"],
+        "「あ」を含む": ["さくら","たいやき","あつま","あさ"],
+        "数字を含む": ["123","0","777","2026年","いちご2個"],
+        "絵文字を含む": ["🍎","🌸","⭐","🐟","🍀","🚀"],
+        "回文（2文字以上）": ["しんぶんし","たけやぶやけた","まま","ななおな"],
+        "「カ」で始まる": ["カレー","カラス","カメラ","カンガルー"],
+        "「s」で始まる": ["sun","sea","star","sky","snake"],
+        "「a」で終わる": ["banana","alpha","yoga","data"],
+        "「き」を含む": ["きょうと","さくら","たんぽぽ","きりん"],
+        "10文字以上": ["しんぶんし","けやきざくら","たいようがよくあたる"],
+        "「り」を含む": ["さくら","くり","ごりら","とり"],
+        "「え」を含む": ["えび","おえかき","いえ","ねこ"],
+        "「う」を含む": ["うみ","うさぎ","おうどん","さくらんぼ"],
+        "「お」を含む": ["おかし","おなか","おばけ","おてら"],
+        "「ん」を含む": ["しんぶんし","てっぽう","はんぶん","にんじん"],
+        "「み」を含む": ["みかん","みそしる","えみ","こみち","たのしみ"],
+        "「い」を含む": ["いちご","いぬ","さくら","おりがみ","いのち"],
+        "「た」を含む": ["たいやき","たらこ","たぬき","くじら","はたけ"],
+        "「と」を含む": ["とり","とうきょう","さくら","とまと"],
+        "「な」を含む": ["なす","なつ","さくら","なみ","たぬき"],
+        "「ぬ」を含む": ["たぬき","ぬりえ","ぬま"],
+        "「ね」を含む": ["ねこ","ねぎ","ねずみ","くねくね"],
+        "「は」を含む": ["はる","はな","はし","くじら"],
+        "「ひ」を含む": ["ひまわり","ひよこ","ひかり","くじら"],
+        "「ふ」を含む": ["ふね","ふゆ","ふく","くじら"],
+        "「へ」を含む": ["へび","へや","へそ","くじら"],
+        "「ほ」を含む": ["ほたる","ほん","ほし","くじら"],
+        "「ま」を含む": ["まち","まめ","まる","くじら"],
+        "「や」を含む": ["やきとり","やさい","やね","くじら"],
+        "「ゆ」を含む": ["ゆき","ゆめ","ゆうびん","くじら"],
+        "「よ」を含む": ["よい","よる","よろこび","くじら"],
+        "「ら」を含む": ["らっぱ","かりん","くり","くじら"],
+        "「る」を含む": ["さくら","いるか","ざる","くるま"],
+        "「れ」を含む": ["れもん","くれよん","くれき","くじら"],
+        "「ろ」を含む": ["ろーる","ろまん","せろり","くじら"],
+        "「わ」を含む": ["わに","わた","わ","くじら"],
+        "「を」を含む": ["わか","わら","くじら","を"],
+        "ひらがなを含む": ["あい","うた","えみ","おばけ","さくら"],
+        "大文字を含む": ["Sendai","Akita","ABC","A","I","M","R"],
+        "小文字を含む": ["abc","xyz","a","i","u","sendai","akita"],
+        "特殊文字を含む": ["!","?","@","#","$","%","&","*","+","=","~","`",'"',"'"],
+        "空白を含む": ["あ い","う た","え み","たい や き","お ば け"],
+        "感嘆符を含む": ["!","?!","!!","あ!","おお!","わぁ!","すごい!"],
+        "疑問符を含む": ["?","??","あ?","どう?","これ?","なに?","どれ?"],
+        "「0」を含む": ["0","10","20","30","100","0円","0歳"],
+        "「1」を含む": ["1","11","12","13","10","100","1円","1歳"],
+        "「5」を含む": ["5","15","25","35","45","50","55","95","5円","5歳"],
+        "「7」を含む": ["7","17","27","37","47","57","67","70","77","7円","7歳"],
+        "「9」を含む": ["9","19","29","39","49","59","69","79","89","90","99","9円","9歳"],
+        "偶数文字": ["あい","うた","えみ","おか","かに","さけ","ちか","つば","なみ","ねこ","むし","ゆき","よい","らん","るい","わか","ゐか","ゔん","・み","ーめ","々ん","〇た"],
+        "奇数文字": ["あ","う","え","お","か","き","く","け","こ","さ","し","す","せ","そ","た","ち","つ","て","と","な","に","ぬ","ね","の","は","ひ","ふ","へ","ほ","ま","み","む","め","も","や","ゆ","よ","ら","り","る","れ","ろ","わ","を","ん"],
+        "丸括弧を含む": ["(","（","a(b","（笑）","test()"],
+        "「・」を含む": ["・","・ﾀﾁ","あ・い","な・つ","く・じ・ら"],
+        "「ー」を含む": ["ー","あー","たー","けー","さー","たー","なー","はー","まー","やー","らー","わー","ーる","ーん"],
+        "「@」を含む": ["@","a@b","@user","test@","@1"],
+        "「#」を含む": ["#","#tag","#1","#abc","＃"],
+        "「$」を含む": ["$","$1","a$b","$test","$$"],
+        "「%」を含む": ["%","%1","a%b","100%","％"],
+        "「&」を含む": ["&","a&b","&amp;","test&","＆"],
+        "「*」を含む": ["*","a*b","**","test*","＊"],
+        "「+」を含む": ["+","a+b","++","test+","＋"],
+        "「=」を含む": ["=","a=b","==","test=","＝"],
+        "「~」を含む": ["~","a~b","~~","test~","～"],
+        "「`」を含む": ["`","a`b","``","test`","｀"],
+        "「\"」を含む": ["\"","\"a\"","\"\"","test\"","\""],
+        "「'」を含む": ["'","a'b","''","test'","＇"],
+        "アンダースコアを含む": ["_","a_b","__","test_","a_b_c","___","_1","__a"],
+        "ハイフンを含む": ["-","a-b","--","test-","a-b-c","-1","--a","-あ","-い","-う","-え","-お","-か","-き","-く","-け","-こ","-さ","-し","-す","-せ","-そ","-た","-ち","-つ","-て","-と","-な","-に","-ぬ","-ね","-の","-は","-ひ","-ふ","-へ","-ほ","-ま","-み","-む","-め","-も","-や","-ゆ","-よ","-ら","-り","-る","-れ","-ろ","-わ","-を","-ん"],
+        "スラッシュを含む": ["/","a/b","//","test/","a/b/c","///","/1","//a","/あ","/い","/う","/え","/お","/か","/き","/く","/け","/こ","/さ","/し","/す","/せ","/そ","/た","/ち","/つ","/て","/と","/な","/に","/ぬ","/ね","/の","/は","/ひ","/ふ","/へ","/ほ","/ま","/み","/む","/め","/も","/や","/ゆ","/よ","/ら","/り","/る","/れ","/ろ","/わ","/を","/ん"],
+        "「{」を含む": ["{","a{b","{}","test{","{a}","{1}","{あ}","{い}","{う}","{え}","{お}","{か}","{き}","{く}","{け}","{こ}","{さ}","{し}","{す}","{せ}","{そ}","{た}","{ち}","{つ}","{て}","{と}","{な}","{に}","{ぬ}","{ね}","{の}","{は}","{ひ}","{ふ}","{へ}","{ほ}","{ま}","{み}","{む}","{め}","{も}","{や}","{ゆ}","{よ}","{ら}","{り}","{る}","{れ}","{ろ}","{わ}","{を}","{ん}"],
+        "「<」を含む": ["<","a<b","<>","test<","<a>","<1>","<あ>","<い>","<う>","<え>","<お>","<か>","<き>","<く>","<け>","<こ>","<さ>","<し>","<す>","<せ>","<そ>","<た>","<ち>","<つ>","<て>","<と>","<な>","<に>","<ぬ>","<ね>","<の>","<は>","<ひ>","<ふ>","<へ>","<ほ>","<ま>","<み>","<む>","<め>","<も>","<や>","<ゆ>","<よ>","<ら>","<り>","<る>","<れ>","<ろ>","<わ>","<を>","<ん>"],
+        "感嘆符を含む": ["!","?!","!!","あ!","おお!","わぁ!","すごい!","え!","あっ!","わ!","ほんと!","本当!","やばい!","うそ!","まさか!","えぇ!","あー!","ん!","しー!","ちゃ!","ぷ!","ば!","ぱ!","ぴ!","ぷ!","ぽ!","ぽぽ!","ぱぱ!","ぴぴ!","ぷぷ!","ぽぽぽ!"],
+        "疑問符を含む": ["?","??","あ?","どう?","これ?","なに?","どれ?","なぜ?","なんで?","え?","は?","い?","う?","え?","お?","か?","き?","く?","け?","こ?","さ?","し?","す?","せ?","そ?","た?","ち?","つ?","て?","と?","な?","に?","ぬ?","ね?","の?","は?","ひ?","ふ?","へ?","ほ?","ま?","み?","む?","め?","も?","や?","ゆ?","よ?","ら?","り?","る?","れ?","ろ?","わ?","を?","ん?","?あ","?い","?う","?え","?お","?か","?き","?く","?け","?こ","?さ","?し","?す","?せ","?そ","?た","?ち","?つ","?て","?と","?な","?に","?ぬ","?ね","?の","?は","?ひ","?ふ","?へ","?ほ","?ま","?み","?む","?め","?も","?や","?ゆ","?よ","?ら","?り","?る","?れ","?ろ","?わ","?を","?ん"],
+        "数字2つ以上": ["12","123","1234","00","11","22","33","44","55","66","77","88","99","01","10","12","123","12345","123456","1234567","1234567890","0123456789","9876543210","123456789","234567890","345678901","456789012","567890123","678901234","789012345","890123456","901234567","012345678","112","223","334","445","556","667","778","889","990","0001","1112","2223","3334","4445","5556","6667","7778","8889","9990"],
+        "アルファベット2文字以上": ["ab","abc","abcd","ABC","A B","Ab","aB","abC","ABc","AbC","aBc","ab","abc","abcd","abcde","abcdef","ABCDEF","aBcDeF","AbCdEf","aBcD","AbCd","aBCD","ABCDE","AbCdEfGh","aBcDeFgHi","aBcDeFgHiJ","AbCdEfGhIj","aBcDeFg","AbCdEfG","aBcDeF","AbCdEf","aBcd","AbCd","aBcD","Abcd","aBCDE","AbCdE","aBcde","AbCde","aBCDEF","AbCdEfG","aBcDeFh","AbCdEf","aBcde","AbC","aB","ab","AB","abc","ABC","abcd","ABCD","abcde","ABCDE","abcdef","ABCDEF","AbCd","aBcD","AbCdE","aBcDe","AbCdEf","aBcDeF","AbCdEfG","aBcDeFg","AbCdEfGh","aBcDeFgH","AbCdEfGhI","aBcDeFgHi","AbCdEfGhIj","aBcDeFgHiJ","AbCdEfGhIjK","aBcDeFgHiJk","AbCdEfGhIjKl","aBcDeFgHiJkL","AbCdEfGhIjKlM"],
+        "ひらがな3文字以上": ["あいう","あいえ","あいか","あきう","あくえ","あけお","あこい","あさう","あちえ","あつか","あてき","あとこ","なかに","なにぬ","なめい","なもや","なよゆ","ならを","なわを","なんた","なにぬねのは","なにぬねのはま","なにぬねのはまみ","なにぬねのはまや","なにぬねのはまゆ","なにぬねのはまよ","なにぬねのはまら","なにぬねのはまる","なにぬねのはめる","なにぬねのはまろ","なにぬねのはまw","なにぬねのはまを","なにぬねのはまん"]
+      };
+
+      const EXAMPLE_POOL = [
+        "りんご","ケータイ","さくら","しんぶんし","たいやき","スイカ","おばけ","ゆき","うみ","ひと",
+        "rocket","banana","level","123","0","777","abc","あいう","えお","きょうと","Sendai","Akita",
+        "青森","秋田","岩手","宮城","福島","山形","is","in","it","if","A","I","U","E","O","ん","あ","い","う","え","お",
+        "!","?","@","#","$","%","&","*","+","=","~","`",'"',"'",
+        "(","[","{","<","（","「","｛","＜","_","-","+","=","*","/","\\","|","@","#","$","%","&","*","+","=","~","`",'"',"'",
+        "あ い","う た","え み","たい や き","お ば け",
+        "🍎","🌸","⭐","🐟","🍀","🚀"
+      ];
+
+      let secretRule = null;
+      let trialCount = 0;
+      let state = "playing"; // playing | won
+
+      const wordInput = document.getElementById("word");
+      const trialBtn = document.getElementById("trial");
+      const examplesEl = document.getElementById("examples");
+      const hintEl = document.getElementById("hint");
+      const answerInput = document.getElementById("answer");
+      const answerBtn = document.getElementById("answerBtn");
+      const giveUpBtn = document.getElementById("giveUp");
+      const statusEl = document.getElementById("status");
+      const historyEl = document.getElementById("history");
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+        });
+      }
+
+      function pick(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const tmp = a[i];
+          a[i] = a[j];
+          a[j] = tmp;
+        }
+        return a;
+      }
+
+      function setSecretRule() {
+        secretRule = pick(RULES);
+      }
+
+      function renderExamples() {
+        examplesEl.innerHTML = "";
+        const examples = EXAMPLES_BY_RULE[secretRule.name] || [];
+        const chosen = shuffle(examples).slice(0, 8);
+        if (chosen.length === 0) {
+          const pool = shuffle(EXAMPLE_POOL).slice(0, 8);
+          chosen.push(...pool);
+        }
+        for (const w of chosen.slice(0, 10)) {
+          const yes = secretRule.test(w);
+          const chip = document.createElement("span");
+          chip.className = "chip " + (yes ? "yes" : "no");
+          chip.textContent = w + (yes ? " ✓" : " ✗");
+          examplesEl.appendChild(chip);
+        }
+      }
+
+      function addHistory(word, yes) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const v = document.createElement("span");
+        v.className = "verdict " + (yes ? "yes" : "no");
+        v.textContent = yes ? "はい" : "いいえ";
+        row.appendChild(v);
+        const w = document.createElement("span");
+        w.className = "word";
+        w.textContent = escapeHtml(word);
+        row.appendChild(w);
+        historyEl.insertBefore(row, historyEl.firstChild);
+      }
+
+      function setHint(text) {
+        hintEl.textContent = text;
+      }
+
+      function showStatus(html, isWin) {
+        statusEl.innerHTML = html;
+        statusEl.style.display = "block";
+        statusEl.className = "status" + (isWin ? " win" : "");
+      }
+
+      function resetUI() {
+        statusEl.style.display = "none";
+        statusEl.className = "status";
+        statusEl.innerHTML = "";
+        answerInput.value = "";
+        wordInput.value = "";
+        answerInput.disabled = false;
+        trialBtn.disabled = false;
+        giveUpBtn.disabled = false;
+        trialCount = 0;
+        historyEl.innerHTML = "";
+        state = "playing";
+        setHint("何を入れる？ 適当な言葉を試してみよう。");
+        wordInput.focus();
+      }
+
+      function startGame() {
+        setSecretRule();
+        renderExamples();
+        resetUI();
+      }
+
+      function trial() {
+        if (state !== "playing") return;
+        const raw = wordInput.value.trim();
+        if (!raw) {
+          setHint("何か言葉を入れてみてください。");
+          return;
+        }
+        const yes = secretRule.test(raw);
+        trialCount += 1;
+        addHistory(raw, yes);
+        wordInput.value = "";
+        wordInput.focus();
+
+        if (trialCount >= 20) {
+          setHint("試す回数が20回に達したよ。ヒントを見たり、答えを当ててみよう。");
+        }
+      }
+
+      function answer() {
+        if (state !== "playing") return;
+        const raw = answerInput.value.trim();
+        if (!raw) {
+          setHint("ルールを入力してね。");
+          return;
+        }
+        if (raw === secretRule.name) {
+          state = "won";
+          answerInput.disabled = true;
+          trialBtn.disabled = true;
+          giveUpBtn.disabled = true;
+          showStatus("正解！ ルールは " + escapeHtml(secretRule.name) + " だったよ。", true);
+          const nextRow = document.createElement("div");
+          nextRow.className = "next-row";
+          const nextBtn = document.createElement("button");
+          nextBtn.id = "nextBtn";
+          nextBtn.type = "button";
+          nextBtn.textContent = "つぎの問題";
+          nextRow.appendChild(nextBtn);
+          statusEl.appendChild(nextRow);
+          bindNext(nextBtn);
+        } else {
+          setHint(`ちがうよ。もう一度考えてみて。`);
+        }
+      }
+
+      function giveUp() {
+        if (state !== "playing") return;
+        if (confirm("答えを表示しますか？\n正解: " + secretRule.name)) {
+          state = "won";
+          answerInput.disabled = true;
+          trialBtn.disabled = true;
+          giveUpBtn.disabled = true;
+          showStatus("答えは " + escapeHtml(secretRule.name) + " だったよ。", true);
+          const nextRow = document.createElement("div");
+          nextRow.className = "next-row";
+          const nextBtn = document.createElement("button");
+          nextBtn.id = "nextBtn";
+          nextBtn.type = "button";
+          nextBtn.textContent = "つぎの問題";
+          nextRow.appendChild(nextBtn);
+          statusEl.appendChild(nextRow);
+          bindNext(nextBtn);
+        }
+      }
+
+      function bindNext(btn) {
+        if (btn._bound) return;
+        btn._bound = true;
+        btn.addEventListener("click", startGame);
+      }
+
+      function onKey(e) {
+        if (e.key === "Enter") {
+          const active = document.activeElement;
+          if (active === wordInput) {
+            trial();
+          } else if (active === answerInput) {
+            answer();
+          }
+        }
+      }
+
+      trialBtn.addEventListener("click", trial);
+      answerBtn.addEventListener("click", answer);
+      giveUpBtn.addEventListener("click", giveUp);
+      window.addEventListener("keydown", onKey);
+
+      startGame();
+    })();
+  </script>
+</body>
+</html>

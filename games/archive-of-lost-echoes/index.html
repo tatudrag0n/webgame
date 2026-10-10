@@ -795,16 +795,24 @@
       let choiceMade = false;
       let busy = false;
 
-      const $ = (sel) => document.querySelector(sel);
-      const stageZone = $("#stageZone");
-      const pageNoEl = $("#pageNo");
-      const keptCountEl = $("#keptCount");
-      const shineCountEl = $("#shineCount");
-      const entryNoEl = $("#entryNo");
-      const entryDateEl = $("#entryDate");
-      const notebook = $("#notebook");
-      const toastEl = $("#toast");
-      const footerHint = $("#footerHint");
+      // $ helper retained only for legacy one-off reads; new listeners bypass it.
+      const stageZone = document.querySelector("#stageZone");
+      const pageNoEl = document.querySelector("#pageNo");
+      const keptCountEl = document.querySelector("#keptCount");
+      const shineCountEl = document.querySelector("#shineCount");
+      const entryNoEl = document.querySelector("#entryNo");
+      const entryDateEl = document.querySelector("#entryDate");
+      const notebook = document.querySelector("#notebook");
+      const toastEl = document.querySelector("#toast");
+      const footerHint = document.querySelector("#footerHint");
+
+      function elNotNull(el) { return el !== null && el !== undefined; }
+
+      function addListener(target, type, listener) {
+        if (elNotNull(target)) {
+          target.addEventListener(type, listener);
+        }
+      }
 
       let toastTimerId = null;
 
@@ -953,8 +961,9 @@
           </span>
         `;
         stageZone.appendChild(zone);
-        const openVault = zone.querySelector("#openVault");
-        if (openVault) openVault.addEventListener("click", () => {
+        const openVault = stageZone.querySelector("#openVault");
+        if (openVault)      addListener(openVault, "click", () => {
+
           if (busy) return;
           attemptDelivery();
         });
@@ -997,13 +1006,14 @@
         const seal = zone.querySelector("#seal");
         if (seal) seal.classList.add("glow-pulse");
 
-        const keepBtn = zone.querySelector("#keep");
-        const sendBtn = zone.querySelector("#send");
-        if (keepBtn) keepBtn.addEventListener("click", () => {
+        const keepBtn = stageZone.querySelector("#keep");
+        const sendBtn = stageZone.querySelector("#send");
+        if (keepBtn)        addListener(keepBtn, "click", () => {
+
           if (busy || choiceMade) return;
           makeChoice("keep");
         });
-        if (sendBtn) sendBtn.addEventListener("click", () => {
+        if (sendBtn) addListener(sendBtn, "click", () => {
           if (busy || choiceMade) return;
           makeChoice("send");
         });
@@ -1247,7 +1257,10 @@
             archive: state.archive.slice(-60),
             seed: state.seed
           };
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+          const serialized = JSON.stringify(obj);
+          if (typeof serialized === "string" && serialized.length < 2_000_000) {
+            localStorage.setItem(STORAGE_KEY, serialized);
+          }
         } catch (e) {
           // ignore
         }
@@ -1256,17 +1269,20 @@
       function loadState() {
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return;
+          if (!raw || typeof raw !== "string") return;
+          if (raw.length > 2_000_000) return;
           const obj = JSON.parse(raw);
-          if (!obj || typeof obj !== "object") return;
-          state.page = typeof obj.page === "number" ? obj.page : 1;
-          state.keptCount = typeof obj.keptCount === "number" ? obj.keptCount : 0;
-          state.shineCount = typeof obj.shineCount === "number" ? obj.shineCount : 0;
-          state.archiveHeaviness = typeof obj.archiveHeaviness === "number" ? obj.archiveHeaviness : 0;
-          state.recentRarityCounts = obj.recentRarityCounts && typeof obj.recentRarityCounts === "object"
+          if (!obj || typeof obj !== "object" || Array.isArray(obj)) return;
+          state.page = typeof obj.page === "number" && Number.isFinite(obj.page) ? obj.page : 1;
+          state.keptCount = typeof obj.keptCount === "number" && Number.isFinite(obj.keptCount) ? obj.keptCount : 0;
+          state.shineCount = typeof obj.shineCount === "number" && Number.isFinite(obj.shineCount) ? obj.shineCount : 0;
+          state.archiveHeaviness = typeof obj.archiveHeaviness === "number" && Number.isFinite(obj.archiveHeaviness) ? obj.archiveHeaviness : 0;
+          state.recentRarityCounts = obj.recentRarityCounts && typeof obj.recentRarityCounts === "object" && !Array.isArray(obj.recentRarityCounts)
             ? obj.recentRarityCounts
             : { common: 0, uncommon: 0, rare: 0, legendary: 0 };
-          state.archive = Array.isArray(obj.archive) ? obj.archive : [];
+          state.archive = Array.isArray(obj.archive)
+            ? obj.archive.filter(e => e && typeof e === "object" && typeof e.text === "string" && typeof e.tier === "string" && typeof e.tone === "string" && typeof e.weight === "number" && Number.isFinite(e.weight) && typeof e.shine === "number" && Number.isFinite(e.shine) && typeof e.light === "number" && Number.isFinite(e.light) && typeof e.dark === "number" && Number.isFinite(e.dark) && typeof e.ctx === "string")
+            : [];
         } catch (e) {
           // ignore
         }
@@ -1280,7 +1296,7 @@
         } else if (kept === 1) {
           msg = "最初の残響は、いちばん忘れにくい。";
         } else if (kept < 5) {
-          msg = `小さな束ができ始めた。アカイブは軽く鳴る。`;
+          msg = `小さな束ができ始めた。アーカイブは軽く鳴る。`;
         } else if (kept < 12) {
           msg = `ページの影が濃くなった。届きにくい残響もある。`;
         } else if (kept < 24) {
