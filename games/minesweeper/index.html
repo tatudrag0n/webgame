@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>伏せられた祠 - マインスイーパ</title>
+  <style>
+    :root {
+      --bg:#0a0c16; --ink:#eef2ff; --muted:#94a0c0; --accent:#ffb703; --line:#212a44;
+      --panel:#121829; --panel2:#1b2338; --covered:#252f4d; --covered2:#1a2237;
+      --danger:#ff6b7a;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; min-height:100vh; font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(560px 300px at 12% -6%, #2a1c3a, transparent 62%),
+        radial-gradient(520px 320px at 98% 0%, #3a2a12, transparent 58%),
+        var(--bg);
+    }
+    main { max-width:900px; margin:0 auto; padding:36px 18px 64px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+    h1 { margin:0; font-size:34px; letter-spacing:0.08em; }
+    h1 small { display:block; font-size:13px; letter-spacing:0.24em; color:var(--accent); font-weight:400; margin-bottom:6px; }
+    .sub { margin:6px 0 0; color:var(--muted); font-size:14px; line-height:1.6; }
+    .back { color:var(--muted); text-decoration:none; border-bottom:1px solid var(--line); font-size:14px; white-space:nowrap; }
+    .back:hover { color:var(--ink); border-color:var(--accent); }
+
+    .hud {
+      display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center;
+      background:var(--panel); border:1px solid var(--line); border-radius:14px;
+      padding:12px 16px; font-size:14px; margin-bottom:14px;
+    }
+    .hud .item { color:var(--muted); }
+    .hud .item b { color:var(--ink); font-size:16px; }
+    .hud .item b.on { color:var(--accent); }
+    .hud .item b.bad { color:var(--danger); }
+
+    .board-scroll { overflow-x:auto; padding-bottom:4px; }
+    .board-wrap { display:flex; justify-content:center; min-width:min-content; }
+    .board-frame { position:relative; display:inline-block; line-height:0; }
+    canvas { display:block; touch-action:none; border-radius:16px; background:#0e1322; box-shadow:0 24px 60px -30px rgba(0,0,0,.95); cursor:pointer; }
+    .overlay {
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(5,8,16,.8); border-radius:16px; backdrop-filter:blur(3px); text-align:center; padding:22px;
+    }
+    .overlay[hidden] { display:none; }
+    .overlay h2 { margin:0 0 8px; font-size:26px; letter-spacing:0.08em; }
+    .overlay p { margin:0; color:var(--muted); font-size:14px; line-height:1.75; }
+    .overlay .row { display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+
+    button, select {
+      font-family:inherit; font-size:14px; font-weight:700; cursor:pointer;
+      background:var(--panel2); color:var(--ink);
+      border:1px solid var(--line); border-radius:12px; padding:10px 14px;
+      transition:border-color .15s ease, transform .15s ease;
+    }
+    button:hover:not(:disabled), select:hover { border-color:var(--accent); }
+    button:hover:not(:disabled) { transform:translateY(-1px); }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    button.primary { background:var(--accent); color:#241a02; border-color:var(--accent); }
+    button.on { border-color:var(--accent); color:var(--accent); }
+
+    .controls { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+    .settings { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:14px; color:var(--muted); font-size:14px; }
+    .settings label { display:flex; align-items:center; gap:8px; }
+    .status { margin-top:16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:13px 18px; font-size:14.5px; line-height:1.7; min-height:52px; }
+    .status b { color:var(--accent); }
+    .status .bad { color:var(--danger); }
+
+    .panel { margin-top:22px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+    .panel h3 { margin:0 0 12px; font-size:15px; letter-spacing:0.1em; color:var(--accent); font-weight:600; }
+    .panel ul { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
+    .panel li { color:var(--muted); font-size:13.5px; line-height:1.65; display:flex; gap:10px; align-items:baseline; }
+    .panel li b { color:var(--ink); font-weight:600; }
+    .mark { display:inline-block; width:18px; height:18px; border-radius:5px; flex:0 0 auto; position:relative; top:2px; }
+    .mark.covered { background:linear-gradient(180deg,var(--covered),var(--covered2)); border:1px solid var(--line); }
+    .mark.seal { background:#f4f1e6; border:1px solid #b9b2a0; }
+    .mark.curse { background:radial-gradient(circle at 34% 30%, #ff9aa4, #c2333f 66%); border-radius:50%; }
+
+    footer { margin-top:26px; color:var(--muted); font-size:13.5px; line-height:1.8; }
+    kbd {
+      background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px;
+      border-radius:6px; padding:2px 7px; font-size:12px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1><small>ふせられたほこら</small>伏せられた祠</h1>
+        <p class="sub">数字は「まわり8マスにある祟りの数」。祟りを踏まずに、すべての祠を開いて鎮めよう。</p>
+      </div>
+      <a class="back" href="../index.html">一覧にもどる</a>
+    </header>
+
+    <div class="hud">
+      <span class="item">残りの祟り <b id="remaining" class="on">10</b></span>
+      <span class="item">時間 <b id="time">0:00</b></span>
+      <span class="item">開いた祠 <b id="progress">0%</b></span>
+      <span class="item">難所 <b id="levelName">小さな祠</b></span>
+      <span class="item">最速 <b id="best">-</b></span>
+    </div>
+
+    <div class="board-scroll">
+      <div class="board-wrap">
+        <div class="board-frame">
+          <canvas id="board"></canvas>
+          <div class="overlay" id="overlay" hidden>
+            <div>
+              <h2 id="ovTitle">祠を鎮めました</h2>
+              <p id="ovText"></p>
+              <div class="row">
+                <button class="primary" id="ovAgain" type="button">もう一度</button>
+                <button id="ovClose" type="button">盤面を見る</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="restart" type="button">はじめから</button>
+      <button id="hint" type="button">安全な場所を探す</button>
+      <button id="flagMode" type="button">印モード</button>
+    </div>
+
+    <div class="settings">
+      <label>難所
+        <select id="level">
+          <option value="small" selected>小さな祠 9×9・祟り10</option>
+          <option value="medium">古い祠 16×16・祟り40</option>
+          <option value="large">大いなる祠 16×30・祟り99</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="safeFirst" checked> 最初の一撃は必ず安全</label>
+    </div>
+
+    <p class="status" id="status"></p>
+
+    <section class="panel">
+      <h3>あそびかた</h3>
+      <ul>
+        <li><span class="mark covered"></span><span><b>伏せられた祠</b>：クリック／タップで開く。開いたマスの数字は、まわり8マスの祟りの数。</span></li>
+        <li><span class="mark seal"></span><span><b>封印の札</b>：右クリック、または長押しで立てる。祟りがありそうな祠に。</span></li>
+        <li><span class="mark curse"></span><span><b>祟り</b>：踏むと目を覚ましてしまう。数字が0の祠を開くと、まわりが一度に開く。</span></li>
+        <li><b>まとめて開く</b>：数字のまわりに数字と同じ数の札を立ててから、その数字をクリックすると、残りのまわりが一気に開く（札の場所が間違っていると祟りを踏むので注意）。</li>
+        <li><b>勝利</b>：祟り以外の祠をすべて開いたら鎮められる。</li>
+      </ul>
+    </section>
+
+    <footer>
+      操作：クリックで開く、右クリック／長押しで札、数字をクリックで周囲をまとめて開く。<kbd>F</kbd> で印モードを切り替え、<kbd>R</kbd> でやり直す。
+      難所ごとの最速タイムと設定はこのブラウザに保存されます。
+    </footer>
+  </main>
+
+<script>
+/* ===== MODEL START =====
+   祠（マインスイーパ）のルール。DOM に依存しないので、そのままテストから読み込める。 */
+
+var HIDDEN = 0, REVEALED = 1, FLAGGED = 2;
+
+function makeRng(seed) {
+  var s = (seed >>> 0) || 1;
+  return function () {
+    s = (s + 0x6D2B79F5) | 0;
+    var t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+var LEVELS = {
+  small:  { label: "小さな祠",   width: 9,  height: 9,  mines: 10 },
+  medium: { label: "古い祠",     width: 16, height: 16, mines: 40 },
+  large:  { label: "大いなる祠", width: 30, height: 16, mines: 99 }
+};
+
+function levelKey(level) {
+  return level.width + "x" + level.height + "-" + level.mines;
+}
+
+function indexOf(level, x, y) { return y * level.width + x; }
+
+function isInside(level, x, y) {
+  return x >= 0 && y >= 0 && x < level.width && y < level.height;
+}
+
+/* index のまわり8マスの index 一覧 */
+function neighborList(level, index) {
+  var x = index % level.width;
+  var y = Math.floor(index / level.width);
+  var out = [];
+  for (var dy = -1; dy <= 1; dy++) {
+    for (var dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      if (!isInside(level, x + dx, y + dy)) continue;
+      out.push(indexOf(level, x + dx, y + dy));
+    }
+  }
+  return out;
+}
+
+function createGame(level, seed) {
+  var total = level.width * level.height;
+  return {
+    level: level,
+    seed: seed >>> 0,
+    mines: new Array(total).fill(false),
+    numbers: new Array(total).fill(0),
+    state: new Array(total).fill(HIDDEN),
+    placed: false,
+    status: "ready",
+    opened: 0,
+    explodedAt: -1
+  };
+}
+
+/* 最初に開いたマスとそのまわりには祟りを置かない */
+function safeZone(level, index) {
+  var zone = [index];
+  return zone.concat(neighborList(level, index));
+}
+
+function plantMines(game, safeIndex, rng) {
+  var level = game.level;
+  var total = level.width * level.height;
+  var banned = {};
+  safeZone(level, safeIndex).forEach(function (index) { banned[index] = true; });
+
+  var pool = [];
+  for (var i = 0; i < total; i++) if (!banned[i]) pool.push(i);
+
+  /* Fisher-Yates の部分シャッフルで必要数だけ選ぶ */
+  var count = Math.min(level.mines, pool.length);
+  for (var k = 0; k < count; k++) {
+    var pick = k + Math.floor(rng() * (pool.length - k));
+    var tmp = pool[k];
+    pool[k] = pool[pick];
+    pool[pick] = tmp;
+    game.mines[pool[k]] = true;
+  }
+
+  game.numbers = computeNumbers(game);
+  game.placed = true;
+  game.status = "playing";
+  return game;
+}
+
+function computeNumbers(game) {
+  var level = game.level;
+  var numbers = new Array(level.width * level.height).fill(0);
+  for (var i = 0; i < numbers.length; i++) {
+    if (game.mines[i]) { numbers[i] = -1; continue; }
+    var around = neighborList(level, i);
+    var count = 0;
+    for (var k = 0; k < around.length; k++) if (game.mines[around[k]]) count += 1;
+    numbers[i] = count;
+  }
+  return numbers;
+}
+
+function isRevealed(game, index) { return game.state[index] === REVEALED; }
+function isFlagged(game, index) { return game.state[index] === FLAGGED; }
+
+function hiddenCount(game) {
+  var n = 0;
+  for (var i = 0; i < game.state.length; i++) if (game.state[i] === HIDDEN) n += 1;
+  return n;
+}
+
+function flagCount(game) {
+  var n = 0;
+  for (var i = 0; i < game.state.length; i++) if (game.state[i] === FLAGGED) n += 1;
+  return n;
+}
+
+function remainingMines(game) { return game.level.mines - flagCount(game); }
+
+function toggleFlag(game, index) {
+  if (game.status === "won" || game.status === "lost") return false;
+  if (game.state[index] === REVEALED) return false;
+  game.state[index] = game.state[index] === FLAGGED ? HIDDEN : FLAGGED;
+  return true;
+}
+
+function checkWin(game) {
+  var total = game.level.width * game.level.height;
+  if (game.opened === total - game.level.mines) {
+    game.status = "won";
+    return true;
+  }
+  return false;
+}
+
+/* 開く。0 のマスなら繋がった範囲をまとめて開く。
+   game.opened は「開いた祠の数」で、踏んでしまった祟りの1マスも含む。 */
+function openCell(game, index) {
+  var level = game.level;
+  var result = { opened: [], exploded: false };
+  if (game.status === "won" || game.status === "lost") return result;
+  if (game.state[index] === REVEALED || game.state[index] === FLAGGED) return result;
+
+  if (game.mines[index]) {
+    game.state[index] = REVEALED;
+    game.opened += 1;
+    game.status = "lost";
+    game.explodedAt = index;
+    result.opened.push(index);
+    result.exploded = true;
+    return result;
+  }
+
+  var stack = [index];
+  while (stack.length > 0) {
+    var current = stack.pop();
+    if (game.state[current] === REVEALED || game.state[current] === FLAGGED) continue;
+    if (game.mines[current]) continue;
+    game.state[current] = REVEALED;
+    game.opened += 1;
+    result.opened.push(current);
+    if (game.numbers[current] === 0) {
+      var around = neighborList(level, current);
+      for (var k = 0; k < around.length; k++) {
+        if (game.state[around[k]] === HIDDEN) stack.push(around[k]);
+      }
+    }
+  }
+  checkWin(game);
+  return result;
+}
+
+/* 数字のまわりに同じ数の札が立っていれば、残りをまとめて開く */
+function chordCell(game, index) {
+  var level = game.level;
+  var result = { opened: [], exploded: false, attempted: false };
+  if (game.status !== "playing") return result;
+  if (game.state[index] !== REVEALED) return result;
+  var number = game.numbers[index];
+  if (number <= 0) return result;
+
+  var around = neighborList(level, index);
+  var flags = 0, hidden = [];
+  for (var k = 0; k < around.length; k++) {
+    if (game.state[around[k]] === FLAGGED) flags += 1;
+    else if (game.state[around[k]] === HIDDEN) hidden.push(around[k]);
+  }
+  if (flags !== number || hidden.length === 0) return result;
+
+  result.attempted = true;
+  for (var i = 0; i < hidden.length; i++) {
+    var opened = openCell(game, hidden[i]);
+    result.opened = result.opened.concat(opened.opened);
+    if (opened.exploded) { result.exploded = true; break; }
+  }
+  return result;
+}
+
+function isWon(game) { return game.status === "won"; }
+function isLost(game) { return game.status === "lost"; }
+
+/* まだ祟りの可能性がある祠のうち、論理だけで安全と言い切れるものを探す */
+function findSafeCell(game) {
+  var level = game.level;
+  var total = level.width * level.height;
+  if (!game.placed) {
+    for (var i = 0; i < total; i++) if (game.state[i] === HIDDEN) return i;
+    return -1;
+  }
+  /* 開いた数字のまわりで、札の数が数字と同じなら残りは安全 */
+  for (var index = 0; index < total; index++) {
+    if (game.state[index] !== REVEALED) continue;
+    var number = game.numbers[index];
+    if (number <= 0) continue;
+    var around = neighborList(level, index);
+    var flags = 0, hidden = [];
+    for (var k = 0; k < around.length; k++) {
+      if (game.state[around[k]] === FLAGGED) flags += 1;
+      else if (game.state[around[k]] === HIDDEN) hidden.push(around[k]);
+    }
+    if (flags === number && hidden.length > 0) return hidden[0];
+  }
+  /* 開いた 0 のまわりは必ず安全 */
+  for (var cell = 0; cell < total; cell++) {
+    if (game.state[cell] !== REVEALED || game.numbers[cell] !== 0) continue;
+    var near = neighborList(level, cell);
+    for (var m = 0; m < near.length; m++) {
+      if (game.state[near[m]] === HIDDEN) return near[m];
+    }
+  }
+  return -1;
+}
+/* ===== MODEL END ===== */
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  var SAVE_KEY = "minesweeper-save";
+  var canvas = document.getElementById("board");
+  var ctx = canvas.getContext("2d");
+  var overlay = document.getElementById("overlay");
+  var ovTitle = document.getElementById("ovTitle");
+  var ovText = document.getElementById("ovText");
+  var ovAgain = document.getElementById("ovAgain");
+  var ovClose = document.getElementById("ovClose");
+  var remainingEl = document.getElementById("remaining");
+  var timeEl = document.getElementById("time");
+  var progressEl = document.getElementById("progress");
+  var levelNameEl = document.getElementById("levelName");
+  var bestEl = document.getElementById("best");
+  var levelSelect = document.getElementById("level");
+  var safeFirstEl = document.getElementById("safeFirst");
+  var statusEl = document.getElementById("status");
+  var restartBtn = document.getElementById("restart");
+  var hintBtn = document.getElementById("hint");
+  var flagModeBtn = document.getElementById("flagMode");
+
+  var NUMBER_COLORS = ["", "#6aa9ff", "#4fda9a", "#ff6b7a", "#b388ff", "#ffb703", "#4dd0e1", "#f2f5fd", "#9aa5c2"];
+
+  var state = {
+    game: null,
+    cell: 30,
+    dpr: 1,
+    hover: null,
+    pressed: -1,
+    pressedAction: null,
+    startedAt: null,
+    elapsed: 0,
+    flagMode: false,
+    safeFirst: true,
+    save: { best: {}, level: "small", safeFirst: true }
+  };
+
+  function loadSave() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+      if (parsed && typeof parsed === "object") {
+        state.save.best = parsed.best && typeof parsed.best === "object" ? parsed.best : {};
+        if (parsed.level && LEVELS[parsed.level]) state.save.level = parsed.level;
+        state.save.safeFirst = parsed.safeFirst !== false;
+      }
+    } catch (error) { /* 既定値で始める */ }
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        best: state.save.best,
+        level: levelSelect.value,
+        safeFirst: state.safeFirst
+      }));
+    } catch (error) { /* 保存できない環境でも遊べる */ }
+  }
+
+  function formatTime(seconds) {
+    var s = Math.max(0, Math.floor(seconds));
+    var m = Math.floor(s / 60);
+    var rest = s % 60;
+    return m + ":" + (rest < 10 ? "0" : "") + rest;
+  }
+
+  function newGame() {
+    var level = LEVELS[levelSelect.value] || LEVELS.small;
+    state.game = createGame(level, Math.floor(Math.random() * 2147483647));
+    state.startedAt = null;
+    state.elapsed = 0;
+    state.game.opened = 0;
+    overlay.hidden = true;
+    levelNameEl.textContent = level.label;
+    layout();
+    update();
+    statusEl.innerHTML = state.safeFirst
+      ? "好きな祠をひとつ開いてみよう。最初の一撃は必ず安全です。"
+      : "好きな祠をひとつ開いてみよう。どこを開くかで祟りの配置が変わります。";
+  }
+
+  function layout() {
+    var level = state.game.level;
+    var maxW = Math.min(window.innerWidth - 44, 880);
+    var cell = Math.floor(maxW / level.width);
+    cell = Math.max(18, Math.min(38, cell));
+    state.cell = cell;
+    state.dpr = window.devicePixelRatio || 1;
+
+    var cssW = level.width * cell;
+    var cssH = level.height * cell;
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+    canvas.width = Math.round(cssW * state.dpr);
+    canvas.height = Math.round(cssH * state.dpr);
+    draw();
+  }
+
+  function roundRect(px, py, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(px + r, py);
+    ctx.arcTo(px + w, py, px + w, py + h, r);
+    ctx.arcTo(px + w, py + h, px, py + h, r);
+    ctx.arcTo(px, py + h, px, py, r);
+    ctx.arcTo(px, py, px + w, py, r);
+    ctx.closePath();
+  }
+
+  function drawSeal(px, py, cell) {
+    var w = cell * 0.44;
+    var h = cell * 0.62;
+    var x = px + (cell - w) / 2;
+    var y = py + (cell - h) / 2;
+    ctx.fillStyle = "#f4f1e6";
+    roundRect(x, y, w, h, cell * 0.08);
+    ctx.fill();
+    ctx.fillStyle = "#c2333f";
+    ctx.fillRect(x + w * 0.18, y + h * 0.22, w * 0.64, h * 0.16);
+    ctx.fillStyle = "rgba(20,24,38,.55)";
+    ctx.fillRect(x + w * 0.18, y + h * 0.5, w * 0.64, h * 0.1);
+  }
+
+  function drawCurse(px, py, cell, exploded) {
+    var cx = px + cell / 2;
+    var cy = py + cell / 2;
+    if (exploded) {
+      ctx.fillStyle = "rgba(255,107,122,.28)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.46, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = exploded ? "#ff8a95" : "#ff6b7a";
+    ctx.beginPath();
+    ctx.arc(cx, cy, cell * (exploded ? 0.3 : 0.24), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(20,10,16,.75)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, cell * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function draw() {
+    var game = state.game;
+    if (!game) return;
+    var level = game.level;
+    var cell = state.cell;
+    var width = level.width * cell;
+    var height = level.height * cell;
+
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#0e1322";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.font = "700 " + Math.round(cell * 0.62) + "px 'Segoe UI','Hiragino Sans',sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (var i = 0; i < game.state.length; i++) {
+      var px = (i % level.width) * cell;
+      var py = Math.floor(i / level.width) * cell;
+      var status = game.state[i];
+      var showMine = (game.status === "lost") && game.mines[i] && status !== FLAGGED;
+
+      if (status === HIDDEN || (game.status === "lost" && status === FLAGGED && !game.mines[i])) {
+        /* 伏せられた祠 */
+        var lift = state.hover === i && game.status === "playing" ? 0.06 : 0;
+        roundRect(px + 1.5, py + 1.5 - lift * cell, cell - 3, cell - 3, cell * 0.16);
+        var gradient = ctx.createLinearGradient(px, py, px, py + cell);
+        gradient.addColorStop(0, "#2b3654");
+        gradient.addColorStop(1, "#1a2237");
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,.05)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        if (game.status === "lost" && status === FLAGGED && !game.mines[i]) {
+          ctx.strokeStyle = "#ff6b7a";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(px + cell * 0.28, py + cell * 0.28);
+          ctx.lineTo(px + cell * 0.72, py + cell * 0.72);
+          ctx.moveTo(px + cell * 0.72, py + cell * 0.28);
+          ctx.lineTo(px + cell * 0.28, py + cell * 0.72);
+          ctx.stroke();
+        }
+      } else {
+        ctx.fillStyle = "#131a2c";
+        ctx.fillRect(px + 0.75, py + 0.75, cell - 1.5, cell - 1.5);
+      }
+
+      if (status === FLAGGED && !(game.status === "lost" && !game.mines[i])) {
+        drawSeal(px, py, cell);
+      } else if (status === REVEALED) {
+        if (game.mines[i]) {
+          drawCurse(px, py, cell, i === game.explodedAt);
+        } else if (game.numbers[i] > 0) {
+          ctx.fillStyle = NUMBER_COLORS[game.numbers[i]] || "#f2f5fd";
+          ctx.fillText(String(game.numbers[i]), px + cell / 2, py + cell / 2 + cell * 0.03);
+        }
+      } else if (showMine) {
+        drawCurse(px, py, cell, false);
+      }
+
+      if (state.hover === i && game.status === "playing") {
+        ctx.strokeStyle = "rgba(255,183,3,.55)";
+        ctx.lineWidth = Math.max(1.5, cell * 0.06);
+        roundRect(px + 2, py + 2, cell - 4, cell - 4, cell * 0.14);
+        ctx.stroke();
+      }
+    }
+
+    ctx.strokeStyle = "rgba(255,255,255,.05)";
+    ctx.lineWidth = 1;
+    for (var x = 1; x < level.width; x++) {
+      ctx.beginPath();
+      ctx.moveTo(x * cell, 0);
+      ctx.lineTo(x * cell, height);
+      ctx.stroke();
+    }
+    for (var y = 1; y < level.height; y++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y * cell);
+      ctx.lineTo(width, y * cell);
+      ctx.stroke();
+    }
+  }
+
+  function update() {
+    var game = state.game;
+    var level = game.level;
+    var total = level.width * level.height;
+    remainingEl.textContent = String(remainingMines(game));
+    remainingEl.className = remainingMines(game) < 0 ? "bad" : "on";
+    timeEl.textContent = formatTime(state.elapsed);
+    var playable = total - level.mines;
+    progressEl.textContent = Math.round((Math.min(game.opened, playable) / playable) * 100) + "%";
+    var best = state.save.best[levelKey(level)];
+    bestEl.textContent = typeof best === "number" ? formatTime(best) : "-";
+    hintBtn.disabled = game.status === "won" || game.status === "lost";
+    draw();
+  }
+
+  function finish() {
+    var game = state.game;
+    var level = game.level;
+    state.startedAt = null;
+    if (isWon(game)) {
+      var key = levelKey(level);
+      var best = state.save.best[key];
+      var record = typeof best !== "number" || state.elapsed < best;
+      if (record) state.save.best[key] = Math.round(state.elapsed);
+      persist();
+      ovTitle.textContent = "祠を鎮めました";
+      ovText.innerHTML =
+        level.label + "：" + formatTime(state.elapsed) +
+        (record ? "　<b style=\"color:#ffb703\">最速更新</b>" : "　最速 " + formatTime(best)) +
+        "<br>残りの札 " + flagCount(game) + "枚。";
+      statusEl.innerHTML = "<b>鎮めました。</b>　時間 " + formatTime(state.elapsed) + "。";
+    } else {
+      ovTitle.textContent = "祟りが目を覚ました";
+      ovText.innerHTML =
+        "踏んでしまった祟りは " + (game.explodedAt % level.width + 1) + "列 " + (Math.floor(game.explodedAt / level.width) + 1) + "行。<br>" +
+        "伏せられたままだった祠は " + hiddenCount(game) + " ヶ所。札の位置を見直してみよう。";
+      statusEl.innerHTML = "<span class=\"bad\">祟りを踏みました。</span>　はじめから挑戦し直せます。";
+    }
+    overlay.hidden = false;
+    update();
+  }
+
+  function cellFromEvent(event) {
+    var rect = canvas.getBoundingClientRect();
+    var level = state.game.level;
+    var x = Math.floor((event.clientX - rect.left) / state.cell);
+    var y = Math.floor((event.clientY - rect.top) / state.cell);
+    if (x < 0 || y < 0 || x >= level.width || y >= level.height) return -1;
+    return y * level.width + x;
+  }
+
+  function beginTimer() {
+    if (state.startedAt === null) state.startedAt = Date.now();
+  }
+
+  function handleOpen(index) {
+    var game = state.game;
+    if (game.status !== "playing" && game.status !== "ready") return;
+    if (!game.placed) {
+      if (state.safeFirst) plantMines(game, index, makeRng(game.seed));
+      else plantMines(game, -1, makeRng(game.seed));
+      beginTimer();
+    }
+    var result = game.state[index] === REVEALED ? chordCell(game, index) : openCell(game, index);
+    if (result.exploded) { finish(); return; }
+    if (result.opened.length > 0) beginTimer();
+    update();
+    if (game.status === "won") finish();
+    else if (result.opened.length === 0 && result.attempted === false && game.state[index] === REVEALED) {
+      statusEl.innerHTML = "その数字のまわりには、まだ札が足りません。";
+    }
+  }
+
+  canvas.addEventListener("pointerdown", function (event) {
+    var index = cellFromEvent(event);
+    if (index === -1) return;
+    event.preventDefault();
+    var game = state.game;
+    if (game.status === "won" || game.status === "lost") return;
+    state.hover = index;
+
+    state.pressed = index;
+    state.pressedAction = "open";
+
+    if (event.button === 2) {
+      state.pressedAction = "flag";
+      beginTimer();
+      toggleFlag(game, index);
+      update();
+      return;
+    }
+    if (state.flagMode) {
+      state.pressedAction = "flag";
+      beginTimer();
+      toggleFlag(game, index);
+      update();
+      return;
+    }
+    if (event.pointerType !== "mouse") {
+      longPress = setTimeout(function () {
+        longPress = null;
+        state.pressedAction = "flag";
+        beginTimer();
+        toggleFlag(game, index);
+        update();
+      }, 380);
+    }
+    if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
+  });
+
+  var longPress = null;
+
+  canvas.addEventListener("pointerup", function (event) {
+    if (longPress) { clearTimeout(longPress); longPress = null; }
+    var index = cellFromEvent(event);
+    var action = state.pressedAction;
+    var pressed = state.pressed;
+    state.pressed = -1;
+    state.pressedAction = null;
+    if (action !== "open" || index === -1 || index !== pressed) return;
+    var game = state.game;
+    if (game.status === "won" || game.status === "lost") return;
+    handleOpen(index);
+  });
+
+  canvas.addEventListener("pointercancel", function () {
+    if (longPress) { clearTimeout(longPress); longPress = null; }
+    state.pressed = -1;
+    state.pressedAction = null;
+  });
+
+  canvas.addEventListener("pointermove", function (event) {
+    var index = cellFromEvent(event);
+    if (index !== state.hover) {
+      state.hover = index === -1 ? null : index;
+      draw();
+    }
+  });
+
+  canvas.addEventListener("pointerleave", function () {
+    state.hover = null;
+    state.pressed = -1;
+    if (longPress) { clearTimeout(longPress); longPress = null; }
+    draw();
+  });
+
+  canvas.addEventListener("contextmenu", function (event) { event.preventDefault(); });
+
+  function setFlagMode(on) {
+    state.flagMode = on;
+    flagModeBtn.classList.toggle("on", on);
+    flagModeBtn.textContent = on ? "印モード中" : "印モード";
+    draw();
+  }
+
+  flagModeBtn.addEventListener("click", function () { setFlagMode(!state.flagMode); });
+
+  restartBtn.addEventListener("click", newGame);
+  ovAgain.addEventListener("click", newGame);
+  ovClose.addEventListener("click", function () { overlay.hidden = true; });
+
+  hintBtn.addEventListener("click", function () {
+    var game = state.game;
+    if (game.status !== "playing" && game.status !== "ready") return;
+    var found = findSafeCell(game);
+    if (found === -1) {
+      statusEl.innerHTML = "いまの盤面からは、安全と言い切れる祠が見つかりません。勘で開くか、札を立て直してみよう。";
+      return;
+    }
+    state.hover = found;
+    draw();
+    statusEl.innerHTML = "安全と言い切れる祠がひとつあります（" + (found % game.level.width + 1) + "列 " +
+      (Math.floor(found / game.level.width) + 1) + "行）。開いてみよう。";
+  });
+
+  levelSelect.addEventListener("change", function () {
+    persist();
+    newGame();
+  });
+
+  safeFirstEl.addEventListener("change", function () {
+    state.safeFirst = safeFirstEl.checked;
+    persist();
+    newGame();
+  });
+
+  window.addEventListener("keydown", function (event) {
+    if (event.key === "f" || event.key === "F") { event.preventDefault(); setFlagMode(!state.flagMode); }
+    else if (event.key === "r" || event.key === "R") { event.preventDefault(); newGame(); }
+  });
+
+  window.addEventListener("resize", layout);
+
+  setInterval(function () {
+    if (state.startedAt === null) return;
+    var game = state.game;
+    if (game.status !== "playing" && game.status !== "ready") return;
+    state.elapsed = (Date.now() - state.startedAt) / 1000;
+    timeEl.textContent = formatTime(state.elapsed);
+  }, 500);
+
+  loadSave();
+  levelSelect.value = state.save.level;
+  state.safeFirst = state.save.safeFirst !== false;
+  safeFirstEl.checked = state.safeFirst;
+  setFlagMode(false);
+  newGame();
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>灯の径 - 光路パズル</title>
+  <style>
+    :root {
+      --bg:#0b0f1a; --ink:#f2f5fd; --muted:#9aa5c2; --accent:#ffb703; --line:#232c44;
+      --panel:#151c2e; --panel2:#1d2740;
+      --crimson:#ff6b7a; --emerald:#4fda9a; --lapis:#6aa9ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; min-height:100vh;
+      font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(760px 420px at 12% -8%, #1d2a4d, transparent 62%),
+        radial-gradient(620px 380px at 100% 4%, #3a2a12, transparent 58%),
+        var(--bg);
+    }
+    main { max-width:760px; margin:0 auto; padding:36px 18px 64px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+    h1 { margin:0; font-size:34px; letter-spacing:0.08em; }
+    h1 small { display:block; font-size:13px; letter-spacing:0.24em; color:var(--accent); font-weight:400; margin-bottom:6px; }
+    .sub { margin:6px 0 0; color:var(--muted); font-size:14px; line-height:1.6; }
+    .back { color:var(--muted); text-decoration:none; border-bottom:1px solid var(--line); font-size:14px; white-space:nowrap; }
+    .back:hover { color:var(--ink); border-color:var(--accent); }
+
+    .hud {
+      display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center;
+      background:var(--panel); border:1px solid var(--line); border-radius:14px;
+      padding:12px 16px; font-size:14px; margin-bottom:14px;
+    }
+    .hud .item { color:var(--muted); }
+    .hud .item b { color:var(--ink); font-size:16px; }
+    .hud .item b.on { color:var(--accent); }
+    .hud .lv-name { color:var(--ink); }
+
+    .board-outer { display:flex; justify-content:center; }
+    .board-frame { position:relative; display:inline-block; line-height:0; }
+    canvas {
+      display:block; margin:0 auto; touch-action:none; cursor:pointer;
+      border-radius:20px; background:#141a2b;
+      box-shadow:0 24px 60px -26px rgba(0,0,0,.85), 0 0 0 1px var(--line) inset;
+    }
+    .overlay {
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(6,9,16,.78); border-radius:20px; backdrop-filter:blur(3px);
+      text-align:center; padding:20px;
+    }
+    .overlay[hidden] { display:none; }
+    .overlay h2 { margin:0 0 8px; font-size:28px; letter-spacing:0.08em; }
+    .overlay p { margin:0 0 4px; color:var(--muted); font-size:14px; line-height:1.7; }
+    .overlay .row { display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+
+    button {
+      font-family:inherit; font-size:14px; font-weight:700; cursor:pointer;
+      background:var(--panel2); color:var(--ink);
+      border:1px solid var(--line); border-radius:12px; padding:10px 16px;
+      transition:border-color .15s ease, transform .15s ease, background .15s ease;
+    }
+    button:hover:not(:disabled) { border-color:var(--accent); transform:translateY(-1px); }
+    button.primary { background:var(--accent); color:#1c1403; border-color:var(--accent); }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+
+    .controls { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+    .hint { margin:14px 0 0; color:var(--muted); font-size:14px; line-height:1.7; min-height:24px; }
+    .hint b { color:var(--accent); font-weight:700; }
+
+    .levels { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+    .levels button { width:44px; padding:10px 0; text-align:center; }
+    .levels button.current { border-color:var(--accent); color:var(--accent); }
+    .levels button.cleared { background:#1b2b25; border-color:#2f6b4f; }
+    .levels button.cleared.current { border-color:var(--accent); color:var(--accent); }
+
+    .panel { margin-top:22px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px 20px; }
+    .panel h3 { margin:0 0 12px; font-size:15px; letter-spacing:0.1em; color:var(--accent); font-weight:600; }
+    .panel ul { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
+    .panel li { color:var(--muted); font-size:13.5px; line-height:1.65; display:flex; gap:10px; align-items:baseline; }
+    .panel li b { color:var(--ink); font-weight:600; }
+    .swatch { display:inline-block; width:20px; height:20px; border-radius:6px; flex:0 0 auto; position:relative; top:3px; }
+    .swatch.mirror { background:linear-gradient(135deg,transparent 44%, #cfd8ee 44%, #cfd8ee 56%, transparent 56%); border:1px solid var(--line); }
+    .swatch.split { background:var(--panel2); border:1px solid var(--line); }
+    .swatch.glass { background:rgba(106,169,255,.22); border:1px solid var(--lapis); }
+    .swatch.target { border:2px dashed var(--crimson); border-radius:50%; }
+    .swatch.wall { background:#0b0f1a; border:1px solid #2c3654; }
+
+    footer { margin-top:26px; color:var(--muted); font-size:13.5px; line-height:1.8; }
+    kbd {
+      background:var(--panel2); border:1px solid var(--line); border-bottom-width:2px;
+      border-radius:6px; padding:2px 7px; font-size:12px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1><small>ひかりのみち</small>灯の径</h1>
+        <p class="sub">光源から出た光を鏡で折り、すべての的を同じ色の光で灯す。色ガラスを通ると光の色が変わる。</p>
+      </div>
+      <a class="back" href="../index.html">一覧にもどる</a>
+    </header>
+
+    <div class="hud">
+      <span class="item">径 <b id="lvNum">1</b>／<span id="lvTotal">10</span></span>
+      <span class="item lv-name" id="lvName"></span>
+      <span class="item">手数 <b id="moves" class="on">0</b></span>
+      <span class="item">最少 <b id="par">-</b></span>
+      <span class="item">ベスト <b id="best">-</b></span>
+    </div>
+
+    <div class="board-outer">
+      <div class="board-frame">
+        <canvas id="stage"></canvas>
+        <div class="overlay" id="overlay" hidden>
+          <div>
+            <h2 id="ovTitle">灯りました</h2>
+            <p id="ovText"></p>
+            <div class="row">
+              <button class="primary" id="ovNext" type="button">次の径へ</button>
+              <button id="ovRetry" type="button">やり直す</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="undo" type="button">ひとつ戻す</button>
+      <button id="reset" type="button">やり直す</button>
+      <button id="hintBtn" type="button">ヒント</button>
+      <button id="autoBtn" type="button">答えを見る</button>
+    </div>
+
+    <p class="hint" id="hint"></p>
+
+    <div class="levels" id="levels"></div>
+
+    <section class="panel">
+      <h3>つくり</h3>
+      <ul>
+        <li><span class="swatch mirror"></span><span><b>鏡</b>：クリック（タップ）で <b>/</b> と <b>\</b> が入れ替わる。光は直角に折れる。</span></li>
+        <li><span class="swatch split"></span><span><b>分光器</b>：光を2つに分ける。まっすぐ抜ける光と、鏡のように折れる光。折れる向きも入れ替えられる。</span></li>
+        <li><span class="swatch glass"></span><span><b>色ガラス</b>：通った光をその色に変える。色は 紅・翠・瑠璃 の3つ。</span></li>
+        <li><span class="swatch target"></span><span><b>的</b>：同じ色の光を吸って灯る。ちがう色の光は素通りする。同じ色の的が並んでいる場合、手前の的が光を吸ってしまうので、分光器で分けよう。</span></li>
+        <li><span class="swatch wall"></span><span><b>壁</b>：光を止める。</span></li>
+      </ul>
+    </section>
+
+    <footer>
+      操作：マスをクリック／タップで回転（なぞると連続で回せる）。<kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> で移動、<kbd>Space</kbd> で回転、<kbd>U</kbd> で戻す、<kbd>R</kbd> でやり直す。
+      クリア状況と最少手数はこのブラウザに保存されます。
+    </footer>
+  </main>
+
+<script>
+/* ===== MODEL START =====
+   光路パズルのルールと問題データ。DOM に依存しないので、そのままテストから読み込める。 */
+
+var COLORS = {
+  crimson: { name: "紅", hex: "#ff6b7a" },
+  emerald: { name: "翠", hex: "#4fda9a" },
+  lapis:   { name: "瑠璃", hex: "#6aa9ff" }
+};
+
+/* dir: 0=上, 1=右, 2=下, 3=左 */
+var DIR_VECTORS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+/* slash=true は「/」、slash=false は「\」。
+   「/」は 上↔右、下↔左（dir^1）。「\」は 上↔左、右↔下（dir^3）。 */
+function reflectDir(dir, slash) {
+  return slash ? (dir ^ 1) : (dir ^ 3);
+}
+
+var LEVELS = [
+  {
+    name: "はじまりの灯",
+    hint: "光源から右へ出た光を、下へ折って的へ届けよう。",
+    w: 5, h: 5,
+    cells: [
+      { x: 0, y: 1, type: "source", dir: 1, color: "crimson" },
+      { x: 3, y: 1, type: "mirror", slash: true },
+      { x: 3, y: 4, type: "target", color: "crimson" }
+    ]
+  },
+  {
+    name: "ふたつの角",
+    hint: "右上の鏡で下へ、右下の鏡で左へ。",
+    w: 6, h: 5,
+    cells: [
+      { x: 0, y: 0, type: "source", dir: 1, color: "crimson" },
+      { x: 5, y: 0, type: "mirror", slash: true },
+      { x: 5, y: 4, type: "mirror", slash: false },
+      { x: 2, y: 4, type: "target", color: "crimson" }
+    ]
+  },
+  {
+    name: "わかれた先",
+    hint: "分光器は光を2つに分ける。右へ抜ける光と、下へ折れる光の両方を使おう。",
+    w: 7, h: 5,
+    cells: [
+      { x: 0, y: 2, type: "source", dir: 1, color: "crimson" },
+      { x: 3, y: 2, type: "splitter", slash: true },
+      { x: 5, y: 2, type: "mirror", slash: false },
+      { x: 3, y: 4, type: "mirror", slash: false },
+      { x: 5, y: 0, type: "target", color: "crimson" },
+      { x: 1, y: 4, type: "target", color: "crimson" }
+    ]
+  },
+  {
+    name: "色の水鏡",
+    hint: "紅の光では的は灯らない。途中の瑠璃のガラスを通して色を変えよう。",
+    w: 6, h: 6,
+    cells: [
+      { x: 0, y: 0, type: "source", dir: 2, color: "crimson" },
+      { x: 0, y: 2, type: "glass", color: "lapis" },
+      { x: 0, y: 4, type: "mirror", slash: true },
+      { x: 4, y: 4, type: "target", color: "lapis" }
+    ]
+  },
+  {
+    name: "二つの灯",
+    hint: "翠のガラスで色を変えて分光器へ。折れた側は、もう一度色を変えてから灯そう。",
+    w: 7, h: 6,
+    cells: [
+      { x: 0, y: 3, type: "source", dir: 1, color: "crimson" },
+      { x: 2, y: 3, type: "glass", color: "emerald" },
+      { x: 3, y: 3, type: "splitter", slash: true },
+      { x: 3, y: 5, type: "mirror", slash: false },
+      { x: 2, y: 5, type: "glass", color: "crimson" },
+      { x: 6, y: 3, type: "target", color: "emerald" },
+      { x: 0, y: 5, type: "target", color: "crimson" }
+    ]
+  },
+  {
+    name: "交差する灯",
+    hint: "紅は左下から右上へ、瑠璃は右下から左上へ。光どうしはぶつからないので、道を交わらせてよい。",
+    w: 7, h: 6,
+    cells: [
+      { x: 0, y: 5, type: "source", dir: 0, color: "crimson" },
+      { x: 6, y: 5, type: "source", dir: 0, color: "lapis" },
+      { x: 0, y: 3, type: "mirror", slash: false },
+      { x: 4, y: 3, type: "mirror", slash: true },
+      { x: 6, y: 4, type: "mirror", slash: true },
+      { x: 4, y: 5, type: "target", color: "crimson" },
+      { x: 0, y: 4, type: "target", color: "lapis" }
+    ]
+  },
+  {
+    name: "三つの色",
+    hint: "分光器は2つ。1つ目で上へ折れる光を紅の的へ、まっすぐの光は色を変えて瑠璃の的へ。",
+    w: 8, h: 6,
+    cells: [
+      { x: 0, y: 2, type: "source", dir: 1, color: "crimson" },
+      { x: 2, y: 2, type: "splitter", slash: false },
+      { x: 2, y: 0, type: "mirror", slash: false },
+      { x: 3, y: 2, type: "glass", color: "lapis" },
+      { x: 4, y: 2, type: "splitter", slash: true },
+      { x: 4, y: 5, type: "mirror", slash: true },
+      { x: 6, y: 5, type: "glass", color: "emerald" },
+      { x: 7, y: 0, type: "target", color: "crimson" },
+      { x: 5, y: 2, type: "target", color: "lapis" },
+      { x: 7, y: 5, type: "target", color: "emerald" }
+    ]
+  },
+  {
+    name: "壁のあいだ",
+    hint: "光は上へ。分光器で真上と、壁の手前で右へ折れる光に分けよう。",
+    w: 8, h: 7,
+    cells: [
+      { x: 0, y: 6, type: "source", dir: 0, color: "crimson" },
+      { x: 0, y: 4, type: "mirror", slash: false },
+      { x: 2, y: 4, type: "splitter", slash: false },
+      { x: 4, y: 4, type: "mirror", slash: false },
+      { x: 5, y: 4, type: "wall" },
+      { x: 2, y: 0, type: "target", color: "crimson" },
+      { x: 4, y: 0, type: "target", color: "crimson" }
+    ]
+  },
+  {
+    name: "彩の連鎖",
+    hint: "瑠璃に変えて分光器へ。まっすぐの光は翠へ、折れた光は紅へ色を変えながら進む。",
+    w: 8, h: 6,
+    cells: [
+      { x: 0, y: 0, type: "source", dir: 1, color: "crimson" },
+      { x: 2, y: 0, type: "glass", color: "lapis" },
+      { x: 3, y: 0, type: "splitter", slash: true },
+      { x: 4, y: 0, type: "mirror", slash: true },
+      { x: 3, y: 2, type: "glass", color: "crimson" },
+      { x: 4, y: 2, type: "glass", color: "emerald" },
+      { x: 4, y: 5, type: "mirror", slash: false },
+      { x: 2, y: 5, type: "glass", color: "crimson" },
+      { x: 3, y: 4, type: "target", color: "crimson" },
+      { x: 0, y: 5, type: "target", color: "crimson" }
+    ]
+  },
+  {
+    name: "夜明けの径",
+    hint: "紅は左の壁ぞいを下り、下の道を通って右下へ。瑠璃は右を下り、壁を回り込んで左下へ。",
+    w: 9, h: 7,
+    cells: [
+      { x: 0, y: 0, type: "source", dir: 2, color: "crimson" },
+      { x: 8, y: 0, type: "source", dir: 2, color: "lapis" },
+      { x: 4, y: 2, type: "wall" },
+      { x: 4, y: 3, type: "wall" },
+      { x: 4, y: 4, type: "wall" },
+      { x: 0, y: 5, type: "mirror", slash: true },
+      { x: 8, y: 5, type: "mirror", slash: true },
+      { x: 8, y: 2, type: "mirror", slash: false },
+      { x: 5, y: 2, type: "mirror", slash: false },
+      { x: 5, y: 6, type: "mirror", slash: false },
+      { x: 8, y: 6, type: "target", color: "crimson" },
+      { x: 1, y: 6, type: "target", color: "lapis" }
+    ]
+  }
+];
+
+/* 描画やクリック判定から引けるように、マスの並び順を index として持たせる */
+LEVELS.forEach(function (level) {
+  level.cells.forEach(function (cell, index) {
+    cell.index = index;
+  });
+});
+
+function makeGrid(level) {
+  const grid = new Map();
+  level.cells.forEach(function (cell, index) {
+    const entry = {
+      x: cell.x, y: cell.y, type: cell.type,
+      dir: cell.dir, color: cell.color, slash: cell.slash,
+      index: index
+    };
+    grid.set(cell.x + "," + cell.y, entry);
+  });
+  return grid;
+}
+
+function rotatableIndexes(level) {
+  const list = [];
+  level.cells.forEach(function (cell, index) {
+    if (cell.type === "mirror" || cell.type === "splitter") list.push(index);
+  });
+  return list;
+}
+
+function defaultRotation(level) {
+  return rotatableIndexes(level).map(function (index) {
+    return !!level.cells[index].slash;
+  });
+}
+
+/* rot は rotatableIndexes() と同じ順の boolean 配列 */
+function simulate(level, rot) {
+  const grid = makeGrid(level);
+  const rotIndex = new Map();
+  rotatableIndexes(level).forEach(function (cellIndex, order) {
+    rotIndex.set(cellIndex, order);
+  });
+  function slashOf(cell) {
+    const order = rotIndex.get(cell.index);
+    if (order === undefined) return !!cell.slash;
+    return !!rot[order];
+  }
+
+  const seen = new Set();
+  const beams = [];
+  const touched = new Set();
+  const lit = new Set();
+  const stack = [];
+  level.cells.forEach(function (cell) {
+    if (cell.type === "source") {
+      stack.push({ x: cell.x, y: cell.y, dir: cell.dir, color: cell.color });
+    }
+  });
+
+  let guard = 0;
+  while (stack.length > 0 && guard < 4000) {
+    guard += 1;
+    const ray = stack.pop();
+    let x = ray.x, y = ray.y, dir = ray.dir, color = ray.color;
+
+    for (let step = 0; step < 400; step++) {
+      const key = x + "," + y + "," + dir + "," + color;
+      if (seen.has(key)) break;
+      seen.add(key);
+
+      const vector = DIR_VECTORS[dir];
+      const nx = x + vector[0];
+      const ny = y + vector[1];
+      beams.push({ x1: x, y1: y, x2: nx, y2: ny, color: color });
+      x = nx; y = ny;
+
+      /* 盤の外に出たら光は消える */
+      if (x < 0 || y < 0 || x >= level.w || y >= level.h) break;
+      const cell = grid.get(x + "," + y);
+      /* 何も置かれていないマスはそのまま通り抜ける */
+      if (!cell) continue;
+      touched.add(cell.index);
+
+      if (cell.type === "wall") break;
+      if (cell.type === "glass") { color = cell.color; continue; }
+      if (cell.type === "target") {
+        if (cell.color === color) { lit.add(cell.index); break; }
+        continue;
+      }
+      if (cell.type === "mirror") { dir = reflectDir(dir, slashOf(cell)); continue; }
+      if (cell.type === "splitter") {
+        stack.push({ x: x, y: y, dir: reflectDir(dir, slashOf(cell)), color: color });
+        continue;
+      }
+    }
+  }
+
+  let totalTargets = 0;
+  const hits = [];
+  level.cells.forEach(function (cell, index) {
+    if (cell.type !== "target") return;
+    totalTargets += 1;
+    if (lit.has(index)) hits.push(index);
+  });
+
+  return {
+    beams: beams,
+    touched: touched,
+    litTargets: lit,
+    hits: hits,
+    totalTargets: totalTargets,
+    solved: totalTargets > 0 && hits.length === totalTargets
+  };
+}
+
+/* 総当たりで最少手数を求める（回転できるマスが20個まで） */
+function solveMin(level) {
+  const cells = rotatableIndexes(level);
+  const n = cells.length;
+  if (n > 20) return null;
+
+  const base = cells.map(function (index) { return !!level.cells[index].slash; });
+  let bestMoves = null;
+  let bestRot = null;
+
+  for (let mask = 0; mask < (1 << n); mask++) {
+    const rot = new Array(n);
+    let diff = 0;
+    for (let bit = 0; bit < n; bit++) {
+      const value = !!(mask & (1 << bit));
+      rot[bit] = value;
+      if (value !== base[bit]) diff += 1;
+    }
+    if (bestMoves !== null && diff >= bestMoves) continue;
+    if (simulate(level, rot).solved) {
+      bestMoves = diff;
+      bestRot = rot.slice();
+    }
+  }
+
+  if (bestMoves === null) return null;
+  return { moves: bestMoves, rot: bestRot };
+}
+/* ===== MODEL END ===== */
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  const SAVE_KEY = "light-path-save";
+  const boardOuter = document.querySelector(".board-outer");
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+  const overlay = document.getElementById("overlay");
+  const ovTitle = document.getElementById("ovTitle");
+  const ovText = document.getElementById("ovText");
+  const ovNext = document.getElementById("ovNext");
+  const ovRetry = document.getElementById("ovRetry");
+  const movesEl = document.getElementById("moves");
+  const parEl = document.getElementById("par");
+  const bestEl = document.getElementById("best");
+  const lvNumEl = document.getElementById("lvNum");
+  const lvTotalEl = document.getElementById("lvTotal");
+  const lvNameEl = document.getElementById("lvName");
+  const hintEl = document.getElementById("hint");
+  const levelsEl = document.getElementById("levels");
+  const undoBtn = document.getElementById("undo");
+  const resetBtn = document.getElementById("reset");
+  const hintBtn = document.getElementById("hintBtn");
+  const autoBtn = document.getElementById("autoBtn");
+
+  const COLORS = window.COLORS || {};
+  const DIR_VECTORS = window.DIR_VECTORS || [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  const LEVELS = window.LEVELS || [];
+  const simulate = window.simulate;
+  const solveMin = window.solveMin;
+  const defaultRotation = window.defaultRotation;
+  const rotatableIndexes = window.rotatableIndexes;
+
+  const parCache = new Map();
+
+  const state = {
+    index: 0,
+    level: null,
+    rot: [],
+    moves: 0,
+    undo: [],
+    won: false,
+    assisted: false,
+    hintShown: false,
+    cursor: null,
+    hover: null,
+    dragging: false,
+    lastDragCell: -1,
+    cell: 48,
+    dpr: window.devicePixelRatio || 1
+  };
+
+  function loadSave() {
+    const fallback = { unlocked: 1, best: {}, last: 0 };
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return {
+        unlocked: Math.min(Math.max(Number(parsed.unlocked) || 1, 1), LEVELS.length),
+        best: parsed.best && typeof parsed.best === "object" ? parsed.best : {},
+        last: Math.min(Math.max(Number(parsed.last) || 0, 0), LEVELS.length - 1)
+      };
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  let save = loadSave();
+
+  function persist() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    } catch (error) {
+      /* 保存できない環境でも遊べるようにする */
+    }
+  }
+
+  function parOf(index) {
+    if (!parCache.has(index)) parCache.set(index, solveMin(LEVELS[index]));
+    return parCache.get(index);
+  }
+
+  function cellCenter(x, y) {
+    return { px: (x + 0.5) * state.cell, py: (y + 0.5) * state.cell };
+  }
+
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function layout() {
+    if (!state.level) return;
+    const available = Math.max(boardOuter.clientWidth, 260);
+    const byWidth = available / state.level.w;
+    const byHeight = (window.innerHeight - 300) / state.level.h;
+    const cell = Math.max(30, Math.min(64, byWidth, Math.max(byHeight, 34)));
+    state.cell = cell;
+    state.dpr = window.devicePixelRatio || 1;
+
+    const cssW = cell * state.level.w;
+    const cssH = cell * state.level.h;
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+    canvas.width = Math.round(cssW * state.dpr);
+    canvas.height = Math.round(cssH * state.dpr);
+    draw();
+  }
+
+  function beamColor(color) {
+    const entry = COLORS[color];
+    return entry ? entry.hex : "#ffffff";
+  }
+
+  function drawBeams() {
+    const cell = state.cell;
+    const groups = new Map();
+    state.view.beams.forEach(function (beam) {
+      const list = groups.get(beam.color) || [];
+      list.push(beam);
+      groups.set(beam.color, list);
+    });
+
+    ctx.save();
+    roundRectPath(0, 0, canvas.width / state.dpr, canvas.height / state.dpr, cell * 0.24);
+    ctx.clip();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.globalCompositeOperation = "lighter";
+
+    groups.forEach(function (beams, color) {
+      const hex = beamColor(color);
+      const passes = [
+        { width: cell * 0.42, alpha: 0.1 },
+        { width: cell * 0.2, alpha: 0.26 },
+        { width: cell * 0.07, alpha: 0.95 }
+      ];
+      passes.forEach(function (pass) {
+        ctx.strokeStyle = hex;
+        ctx.globalAlpha = pass.alpha;
+        ctx.lineWidth = pass.width;
+        ctx.beginPath();
+        beams.forEach(function (beam) {
+          const from = cellCenter(beam.x1, beam.y1);
+          const to = cellCenter(beam.x2, beam.y2);
+          ctx.moveTo(from.px, from.py);
+          ctx.lineTo(to.px, to.py);
+        });
+        ctx.stroke();
+      });
+    });
+
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.restore();
+  }
+
+  function drawMirror(x, y, slash, glow) {
+    const cell = state.cell;
+    const pad = cell * 0.24;
+    const x0 = x * cell;
+    const y0 = y * cell;
+    ctx.lineCap = "round";
+    if (glow) {
+      ctx.globalAlpha = 0.32;
+      ctx.strokeStyle = "#ffe6a8";
+      ctx.lineWidth = cell * 0.26;
+      ctx.beginPath();
+      if (slash) {
+        ctx.moveTo(x0 + pad, y0 + cell - pad);
+        ctx.lineTo(x0 + cell - pad, y0 + pad);
+      } else {
+        ctx.moveTo(x0 + pad, y0 + pad);
+        ctx.lineTo(x0 + cell - pad, y0 + cell - pad);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = "#d7e0f5";
+    ctx.lineWidth = Math.max(2, cell * 0.075);
+    ctx.beginPath();
+    if (slash) {
+      ctx.moveTo(x0 + pad, y0 + cell - pad);
+      ctx.lineTo(x0 + cell - pad, y0 + pad);
+    } else {
+      ctx.moveTo(x0 + pad, y0 + pad);
+      ctx.lineTo(x0 + cell - pad, y0 + cell - pad);
+    }
+    ctx.stroke();
+  }
+
+  function drawSplitter(x, y, slash, glow) {
+    const cell = state.cell;
+    const pad = cell * 0.22;
+    const x0 = x * cell;
+    const y0 = y * cell;
+
+    ctx.save();
+    ctx.setLineDash([cell * 0.1, cell * 0.1]);
+    ctx.strokeStyle = glow ? "rgba(255,230,168,.55)" : "rgba(160,175,205,.5)";
+    ctx.lineWidth = Math.max(1.5, cell * 0.05);
+    ctx.beginPath();
+    if (slash) {
+      ctx.moveTo(x0 + pad, y0 + pad);
+      ctx.lineTo(x0 + cell - pad, y0 + cell - pad);
+    } else {
+      ctx.moveTo(x0 + pad, y0 + cell - pad);
+      ctx.lineTo(x0 + cell - pad, y0 + pad);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    if (glow) {
+      ctx.globalAlpha = 0.32;
+      ctx.strokeStyle = "#ffe6a8";
+      ctx.lineWidth = cell * 0.24;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x0 + pad, y0 + cell - pad);
+      ctx.lineTo(x0 + cell - pad, y0 + pad);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = "#e8eefc";
+    ctx.lineWidth = Math.max(2, cell * 0.07);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x0 + pad, y0 + cell - pad);
+    ctx.lineTo(x0 + cell - pad, y0 + pad);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawGlass(cellData) {
+    const cell = state.cell;
+    const pad = cell * 0.12;
+    const x0 = cellData.x * cell + pad;
+    const y0 = cellData.y * cell + pad;
+    const size = cell - pad * 2;
+    const hex = beamColor(cellData.color);
+
+    ctx.save();
+    roundRectPath(x0, y0, size, size, cell * 0.16);
+    ctx.fillStyle = hex;
+    ctx.globalAlpha = 0.18;
+    ctx.fill();
+    ctx.globalAlpha = 0.75;
+    ctx.strokeStyle = hex;
+    ctx.lineWidth = Math.max(1.5, cell * 0.045);
+    ctx.stroke();
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x0 + size * 0.22, y0 + size * 0.78);
+    ctx.lineTo(x0 + size * 0.78, y0 + size * 0.22);
+    ctx.lineWidth = Math.max(1, cell * 0.03);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawWall(cellData) {
+    const cell = state.cell;
+    const pad = cell * 0.08;
+    const x0 = cellData.x * cell + pad;
+    const y0 = cellData.y * cell + pad;
+    const size = cell - pad * 2;
+    ctx.save();
+    roundRectPath(x0, y0, size, size, cell * 0.12);
+    ctx.fillStyle = "#080c15";
+    ctx.fill();
+    ctx.strokeStyle = "#2b3554";
+    ctx.lineWidth = Math.max(1.5, cell * 0.04);
+    ctx.stroke();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = "#1b2338";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x0 + (size * i) / 3, y0 + pad);
+      ctx.lineTo(x0 + (size * i) / 3, y0 + size - pad);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawTarget(cellData) {
+    const cell = state.cell;
+    const center = cellCenter(cellData.x, cellData.y);
+    const radius = cell * 0.28;
+    const hex = beamColor(cellData.color);
+    const lit = state.view.litTargets.has(cellData.index);
+
+    if (lit) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = hex;
+      ctx.beginPath();
+      ctx.arc(center.px, center.py, cell * 0.44, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = hex;
+      ctx.beginPath();
+      ctx.arc(center.px, center.py, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255,255,255,.85)";
+      ctx.lineWidth = Math.max(1.5, cell * 0.05);
+      ctx.beginPath();
+      ctx.arc(center.px, center.py, radius * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.save();
+      ctx.setLineDash([cell * 0.13, cell * 0.1]);
+      ctx.strokeStyle = hex;
+      ctx.globalAlpha = 0.75;
+      ctx.lineWidth = Math.max(2, cell * 0.06);
+      ctx.beginPath();
+      ctx.arc(center.px, center.py, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = hex;
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.arc(center.px, center.py, radius * 0.26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawSource(cellData) {
+    const cell = state.cell;
+    const pad = cell * 0.2;
+    const x0 = cellData.x * cell + pad;
+    const y0 = cellData.y * cell + pad;
+    const size = cell - pad * 2;
+    const hex = beamColor(cellData.color);
+    const center = cellCenter(cellData.x, cellData.y);
+    const vector = DIR_VECTORS[cellData.dir] || [0, 0];
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = hex;
+    ctx.beginPath();
+    ctx.arc(center.px, center.py, cell * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    roundRectPath(x0, y0, size, size, cell * 0.2);
+    ctx.fillStyle = hex;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(0,0,0,.35)";
+    ctx.lineWidth = Math.max(1, cell * 0.03);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(10,13,22,.9)";
+    ctx.beginPath();
+    ctx.moveTo(center.px + vector[0] * cell * 0.02, center.py + vector[1] * cell * 0.02);
+    const tipX = center.px + vector[0] * cell * 0.2;
+    const tipY = center.py + vector[1] * cell * 0.2;
+    const sideX = -vector[1] * cell * 0.1;
+    const sideY = vector[0] * cell * 0.1;
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(center.px - vector[0] * cell * 0.1 + sideX, center.py - vector[1] * cell * 0.1 + sideY);
+    ctx.lineTo(center.px - vector[0] * cell * 0.1 - sideX, center.py - vector[1] * cell * 0.1 - sideY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCursor() {
+    const cell = state.cell;
+    const marks = [];
+    if (state.cursor !== null) marks.push({ cell: state.cursor, color: "#ffb703" });
+    if (state.hover !== null && rotatableIndexes(state.level).indexOf(state.hover) !== -1 && state.hover !== state.cursor) {
+      marks.push({ cell: state.hover, color: "rgba(255,183,3,.5)" });
+    }
+    marks.forEach(function (mark) {
+      const cellData = state.level.cells[mark.cell];
+      ctx.save();
+      roundRectPath(cellData.x * cell + cell * 0.06, cellData.y * cell + cell * 0.06, cell * 0.88, cell * 0.88, cell * 0.18);
+      ctx.strokeStyle = mark.color;
+      ctx.lineWidth = Math.max(1.5, cell * 0.05);
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  function draw() {
+    if (!state.level || !state.view) return;
+    const cell = state.cell;
+    const width = cell * state.level.w;
+    const height = cell * state.level.h;
+
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = "#141a2b";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = "rgba(255,255,255,.045)";
+    ctx.lineWidth = 1;
+    for (let x = 1; x < state.level.w; x++) {
+      ctx.beginPath();
+      ctx.moveTo(x * cell, 0);
+      ctx.lineTo(x * cell, height);
+      ctx.stroke();
+    }
+    for (let y = 1; y < state.level.h; y++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y * cell);
+      ctx.lineTo(width, y * cell);
+      ctx.stroke();
+    }
+
+    drawBeams();
+
+    state.level.cells.forEach(function (cellData) {
+      const glow = state.view.touched.has(cellData.index);
+      if (cellData.type === "wall") drawWall(cellData);
+      else if (cellData.type === "glass") drawGlass(cellData);
+      else if (cellData.type === "target") drawTarget(cellData);
+      else if (cellData.type === "source") drawSource(cellData);
+      else if (cellData.type === "mirror") drawMirror(cellData.x, cellData.y, state.rot[rotIndex(cellData.index)], glow);
+      else if (cellData.type === "splitter") drawSplitter(cellData.x, cellData.y, state.rot[rotIndex(cellData.index)], glow);
+    });
+
+    drawCursor();
+  }
+
+  let rotMap = new Map();
+  function rebuildRotMap() {
+    rotMap = new Map();
+    rotatableIndexes(state.level).forEach(function (cellIndex, order) {
+      rotMap.set(cellIndex, order);
+    });
+  }
+  function rotIndex(cellIndex) {
+    const order = rotMap.get(cellIndex);
+    return order === undefined ? 0 : order;
+  }
+
+  function update() {
+    state.view = simulate(state.level, state.rot);
+    draw();
+    movesEl.textContent = String(state.moves);
+    const par = parOf(state.index);
+    parEl.textContent = par ? (par.moves === 0 ? "0" : String(par.moves)) : "-";
+    const best = save.best[String(state.index)];
+    bestEl.textContent = typeof best === "number" ? String(best) : "-";
+    undoBtn.disabled = state.undo.length === 0;
+    if (state.view.solved) onSolved();
+    else if (state.won) {
+      state.won = false;
+      overlay.hidden = true;
+    }
+  }
+
+  function onSolved() {
+    if (state.won) return;
+    state.won = true;
+    if (!state.assisted) {
+      const key = String(state.index);
+      const current = save.best[key];
+      if (typeof current !== "number" || state.moves < current) {
+        save.best[key] = state.moves;
+        bestEl.textContent = String(state.moves);
+      }
+    }
+    save.unlocked = Math.min(Math.max(save.unlocked, state.index + 2), LEVELS.length);
+    save.last = state.index;
+    persist();
+    renderLevelButtons();
+
+    const par = parOf(state.index);
+    const isLast = state.index === LEVELS.length - 1;
+    ovTitle.textContent = state.assisted ? "答えをたどりました" : "灯りました";
+    ovText.innerHTML =
+      "手数 " + state.moves + " 手" +
+      (par ? "／最少 " + par.moves + " 手" : "") +
+      "<br>" +
+      (isLast ? "すべての径をめぐりました。" : state.assisted
+        ? "自分の手で解いてみると、道がもっと見えてきます。"
+        : (par && state.moves === par.moves ? "最少手数ちょうどです。" : "さらに短い道があるかもしれません。"));
+    ovNext.textContent = isLast ? "最初の径へ" : "次の径へ";
+    overlay.hidden = false;
+  }
+
+  function rotate(cellIndex, record) {
+    if (!rotMap.has(cellIndex)) return false;
+    const order = rotMap.get(cellIndex);
+    state.rot[order] = !state.rot[order];
+    if (record !== false) {
+      state.undo.push(order);
+      state.moves += 1;
+    }
+    return true;
+  }
+
+  function loadLevel(index) {
+    state.index = index;
+    state.level = LEVELS[index];
+    state.rot = defaultRotation(LEVELS[index]);
+    state.moves = 0;
+    state.undo = [];
+    state.won = false;
+    state.assisted = false;
+    state.hintShown = false;
+    state.cursor = null;
+    state.hover = null;
+    overlay.hidden = true;
+    rebuildRotMap();
+    state.view = simulate(state.level, state.rot);
+    lvNumEl.textContent = String(index + 1);
+    lvTotalEl.textContent = String(LEVELS.length);
+    lvNameEl.textContent = state.level.name;
+    hintEl.innerHTML = "マスをタップして光を折ろう。";
+    hintBtn.disabled = false;
+    hintBtn.textContent = "ヒント";
+    renderLevelButtons();
+    layout();
+    update();
+  }
+
+  function renderLevelButtons() {
+    levelsEl.innerHTML = "";
+    LEVELS.forEach(function (level, index) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = String(index + 1);
+      button.title = level.name;
+      const locked = index >= save.unlocked;
+      button.disabled = locked;
+      if (locked) button.textContent = "🔒";
+      if (save.best[String(index)] !== undefined) button.classList.add("cleared");
+      if (index === state.index) button.classList.add("current");
+      button.addEventListener("click", function () {
+        if (locked) return;
+        loadLevel(index);
+      });
+      levelsEl.appendChild(button);
+    });
+  }
+
+  function cellFromEvent(event) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((event.clientX - rect.left) / state.cell);
+    const y = Math.floor((event.clientY - rect.top) / state.cell);
+    if (x < 0 || y < 0 || x >= state.level.w || y >= state.level.h) return -1;
+    const cell = state.level.cells.find(function (entry) { return entry.x === x && entry.y === y; });
+    return cell ? cell.index : -1;
+  }
+
+  canvas.addEventListener("pointerdown", function (event) {
+    const index = cellFromEvent(event);
+    if (index === -1) return;
+    state.cursor = index;
+    state.dragging = true;
+    state.lastDragCell = index;
+    if (rotate(index)) update();
+    else draw();
+    if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
+  });
+
+  canvas.addEventListener("pointermove", function (event) {
+    const index = cellFromEvent(event);
+    if (index !== state.hover) {
+      state.hover = index === -1 ? null : index;
+      if (!state.dragging) draw();
+    }
+    if (!state.dragging) return;
+    if (index !== -1 && index !== state.lastDragCell) {
+      state.lastDragCell = index;
+      if (rotate(index)) update();
+    }
+  });
+
+  canvas.addEventListener("pointerup", function () {
+    state.dragging = false;
+    state.lastDragCell = -1;
+  });
+  canvas.addEventListener("pointercancel", function () {
+    state.dragging = false;
+    state.lastDragCell = -1;
+  });
+  canvas.addEventListener("pointerleave", function () {
+    state.hover = null;
+    if (!state.dragging) draw();
+  });
+  canvas.addEventListener("contextmenu", function (event) { event.preventDefault(); });
+
+  const KEY_DIRS = {
+    ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+    w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
+    W: [0, -1], S: [0, 1], A: [-1, 0], D: [1, 0]
+  };
+
+  window.addEventListener("keydown", function (event) {
+    const move = KEY_DIRS[event.key];
+    if (move) {
+      event.preventDefault();
+      moveCursor(move[0], move[1]);
+      return;
+    }
+    if (event.key === " " || event.key === "Enter") {
+      if (state.cursor === null) return;
+      event.preventDefault();
+      if (rotate(state.cursor)) update();
+      return;
+    }
+    if (event.key === "u" || event.key === "U" || event.key === "Backspace") {
+      event.preventDefault();
+      undo();
+      return;
+    }
+    if (event.key === "r" || event.key === "R") {
+      event.preventDefault();
+      reset();
+      return;
+    }
+    if (event.key === "n" || event.key === "N") {
+      if (state.won) nextLevel();
+    }
+  });
+
+  /* キーボードでは回せるマスだけを渡り歩く */
+  function moveCursor(dx, dy) {
+    const targets = rotatableIndexes(state.level);
+    if (targets.length === 0) return;
+    if (state.cursor === null || state.level.cells[state.cursor] === undefined) {
+      state.cursor = targets[0];
+      draw();
+      return;
+    }
+    const current = state.level.cells[state.cursor];
+    let best = null;
+    let bestDistance = Infinity;
+    targets.forEach(function (index) {
+      const cell = state.level.cells[index];
+      const vx = cell.x - current.x;
+      const vy = cell.y - current.y;
+      if (dx !== 0 && vy !== 0) return;
+      if (dy !== 0 && vx !== 0) return;
+      if (vx * dx + vy * dy <= 0) return;
+      const distance = Math.abs(vx) + Math.abs(vy);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    });
+    if (best !== null) state.cursor = best;
+    draw();
+  }
+
+  function undo() {
+    if (state.undo.length === 0) return;
+    const order = state.undo.pop();
+    state.rot[order] = !state.rot[order];
+    state.moves = Math.max(0, state.moves - 1);
+    update();
+  }
+
+  function reset() {
+    state.rot = defaultRotation(state.level);
+    state.moves = 0;
+    state.undo = [];
+    state.assisted = false;
+    state.won = false;
+    overlay.hidden = true;
+    update();
+  }
+
+  function nextLevel() {
+    if (state.index + 1 < LEVELS.length) loadLevel(state.index + 1);
+    else loadLevel(0);
+  }
+
+  undoBtn.addEventListener("click", undo);
+  resetBtn.addEventListener("click", reset);
+  ovRetry.addEventListener("click", reset);
+  ovNext.addEventListener("click", nextLevel);
+
+  hintBtn.addEventListener("click", function () {
+    state.hintShown = !state.hintShown;
+    hintBtn.textContent = state.hintShown ? "ヒントを隠す" : "ヒント";
+    if (state.hintShown) {
+      hintEl.innerHTML = "<b>ヒント</b>　" + state.level.hint;
+    } else {
+      hintEl.innerHTML = "マスをタップして光を折ろう。";
+    }
+  });
+
+  autoBtn.addEventListener("click", function () {
+    const solution = parOf(state.index);
+    if (!solution) {
+      hintEl.textContent = "この径は自動では解けません。";
+      return;
+    }
+    state.assisted = true;
+    state.rot = solution.rot.slice();
+    state.moves = 0;
+    state.undo = [];
+    solution.rot.forEach(function (value, order) {
+      if (value !== defaultRotation(state.level)[order]) state.moves += 1;
+    });
+    state.won = false;
+    overlay.hidden = true;
+    update();
+  });
+
+  window.addEventListener("resize", layout);
+
+  const startIndex = Math.min(save.last, save.unlocked - 1);
+  loadLevel(startIndex >= 0 ? startIndex : 0);
+})();
+</script>
+</body>
+</html>
