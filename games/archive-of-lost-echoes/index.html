@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>失われたエコーのアーカイブ</title>
+  <style>
+    :root {
+      --bg: #0a0c16;
+      --paper: #f3efe3;
+      --ink: #1c1b22;
+      --muted: #6b6557;
+      --accent: #c88b3a;
+      --accent-glow: rgba(230, 150, 60, 0.55);
+      --gold: #e9c46a;
+      --emerald: #7fd1a8;
+      --violet: #a28ad8;
+      --ruby: #d9816c;
+      --cyan: #7fd2dc;
+      --line: rgba(20, 18, 12, 0.42);
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: "Iowan Old Style", "Palatino Linotype", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 520px at 12% -8%, #2a2218, transparent 55%),
+        radial-gradient(700px 420px at 100% 6%, #19223a, transparent 55%),
+        radial-gradient(600px 600px at 50% 110%, #221c2c, transparent 55%),
+        var(--bg);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    .stage {
+      position: relative;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 28px 18px 60px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--ink);
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #ffd98a, #a96a1f 70%);
+      box-shadow: inset 0 0 0 1px rgba(255, 235, 170, 0.5), 0 4px 10px rgba(180, 110, 30, 0.35);
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      color: var(--ink);
+    }
+
+    .brand-name {
+      font-size: 15px;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    .brand-name small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-weight: 500;
+    }
+
+    .stats {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      background: rgba(243, 239, 227, 0.06);
+      backdrop-filter: blur(6px);
+      padding: 6px 10px 6px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(243, 239, 227, 0.12);
+      font-size: 13px;
+    }
+
+    .stat .num {
+      font-feature-settings: "tnum";
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--paper);
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    }
+
+    .stat.gold .num { color: var(--gold); }
+
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      border: 1px solid var(--line);
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(243, 239, 227, 0.04);
+      transition: color .15s ease, background .15s ease, border-color .15s ease;
+    }
+
+    .home-link:hover {
+      color: var(--paper);
+      background: rgba(243, 239, 227, 0.08);
+      border-color: rgba(243, 239, 227, 0.3);
+    }
+
+    .notebook {
+      flex: 1;
+      position: relative;
+      background:
+        repeating-linear-gradient(0deg, rgba(20, 18, 30, 0.06) 0 1px, transparent 1px 28px),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 30%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 22px 20px 18px;
+      box-shadow:
+        0 20px 50px -20px var(--shadow),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(2px);
+      transition: border-color .25s ease, box-shadow .25s ease;
+    }
+
+    .notebook.has-focus {
+      border-color: rgba(240, 210, 130, 0.25);
+      box-shadow:
+        0 20px 50px -20px var(--shadow),
+        0 0 0 1px rgba(230, 150, 60, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .entry-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .entry-no {
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      border: 1px solid var(--line);
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(243, 239, 227, 0.04);
+    }
+
+    .entry-date {
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .vault-prompt {
+      text-align: center;
+      padding: 26px 8px 22px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .vault-prompt strong {
+      color: var(--paper);
+      font-weight: 600;
+    }
+
+    .vault-prompt .action {
+      display: inline-block;
+      margin-top: 14px;
+    }
+
+    .item {
+      text-align: center;
+      padding: 18px 6px 14px;
+    }
+
+    .seal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 66px;
+      height: 66px;
+      border-radius: 50%;
+      margin-bottom: 16px;
+      border: 2px solid var(--accent);
+      box-shadow:
+        0 0 0 3px rgba(230, 150, 60, 0.12),
+        0 0 26px var(--accent-glow);
+      background: radial-gradient(circle at 35% 30%, #ffe4a6, #b97a24 72%);
+      transition: transform .15s ease, box-shadow .25s ease;
+      transform: scale(1);
+    }
+
+    .seal.expanded {
+      transform: scale(1.06);
+      box-shadow:
+        0 0 0 6px rgba(230, 150, 60, 0.15),
+        0 0 40px var(--accent-glow);
+    }
+
+    .seal .glyph {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      font-size: 28px;
+      color: var(--ink);
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .item-name {
+      font-size: 26px;
+      line-height: 1.25;
+      margin: 0 0 4px;
+      letter-spacing: 0.02em;
+    }
+
+    .item-tag {
+      display: inline-block;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(243, 239, 227, 0.05);
+      color: var(--muted);
+      margin-bottom: 14px;
+      transition: background .2s ease, color .2s ease, border-color .2s ease;
+    }
+
+    .item-tag.rarity-common { color: var(--muted); border-color: rgba(20, 18, 12, 0.5); }
+    .item-tag.rarity-uncommon { color: var(--emerald); border-color: rgba(127, 209, 168, 0.4); background: rgba(127, 209, 168, 0.06); }
+    .item-tag.rarity-rare { color: var(--violet); border-color: rgba(162, 138, 216, 0.45); background: rgba(162, 138, 216, 0.08); }
+    .item-tag.rarity-legendary { color: var(--gold); border-color: rgba(233, 196, 106, 0.5); background: rgba(233, 196, 106, 0.1); }
+
+    .item-desc {
+      max-width: 560px;
+      margin: 0 auto 10px;
+      color: rgba(28, 27, 34, 0.82);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .item-ctx {
+      max-width: 560px;
+      margin: 0 auto 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      font-style: italic;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    button.game-btn {
+      appearance: none;
+      border: none;
+      font-family: inherit;
+      cursor: pointer;
+      transition: transform .08s ease, background .15s ease, opacity .15s ease, box-shadow .15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+      background: rgba(243, 239, 227, 0.05);
+      color: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    button.game-btn:hover:not(:disabled) {
+      background: rgba(243, 239, 227, 0.1);
+      border-color: rgba(243, 239, 227, 0.35);
+      transform: translateY(-1px);
+    }
+
+    button.game-btn:active:not(:disabled) {
+      transform: translateY(0px) scale(0.98);
+    }
+
+    button.game-btn.primary {
+      background: radial-gradient(circle at 30% 20%, #ffd98a, #c88b3a 80%);
+      color: var(--ink);
+      border-color: transparent;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(190, 120, 30, 0.35);
+    }
+
+    button.game-btn.primary:hover:not(:disabled) {
+      box-shadow: 0 8px 22px rgba(190, 120, 30, 0.5);
+      transform: translateY(-2px);
+      border-color: transparent;
+    }
+
+    button.game-btn.ghost {
+      background: transparent;
+      border-color: rgba(243, 239, 227, 0.2);
+      color: var(--muted);
+    }
+
+    button.game-btn.ghost:hover:not(:disabled) {
+      color: var(--paper);
+      border-color: rgba(243, 239, 227, 0.45);
+    }
+
+    button.game-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    button.game-btn .key {
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      font-size: 11px;
+      background: rgba(28, 27, 34, 0.25);
+      padding: 2px 7px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+      letter-spacing: 0.04em;
+    }
+
+    .choice-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .odds {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      letter-spacing: 0.04em;
+    }
+
+    .journal {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--line);
+    }
+
+    .journal-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      margin: 0 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .journal-title .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .log {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(243, 239, 227, 0.15) transparent;
+    }
+
+    .log::-webkit-scrollbar { width: 6px; }
+    .log::-webkit-scrollbar-thumb { background: rgba(243, 239, 227, 0.2); border-radius: 999px; }
+
+    .log li {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      font-size: 13px;
+      line-height: 1.45;
+      color: rgba(28, 27, 34, 0.78);
+      padding: 4px 8px 4px 0;
+      border-bottom: 1px solid rgba(20, 18, 12, 0.18);
+    }
+
+    .log li .idx {
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+      color: var(--muted);
+      font-size: 11px;
+      min-width: 56px;
+      padding-top: 1px;
+    }
+
+    .log li .tag {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(243, 239, 227, 0.04);
+      color: var(--muted);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .log li .tag.kept { color: var(--gold); border-color: rgba(233, 196, 106, 0.35); background: rgba(233, 196, 106, 0.08); }
+    .log li .tag.lost { color: rgba(150, 150, 160, 0.7); border-color: rgba(150, 150, 160, 0.25); }
+
+    .empty-notes {
+      color: var(--muted);
+      font-size: 12px;
+      font-style: italic;
+      padding: 6px 0 2px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: rgba(28, 27, 34, 0.92);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(243, 239, 227, 0.18);
+      color: var(--paper);
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: 13px;
+      letter-spacing: 0.03em;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .25s ease;
+      z-index: 50;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast .icon { margin-right: 8px; }
+
+    .fade-enter { animation: fadeIn .45s ease both; }
+
+    @keyframes fadeIn {
+      0% { opacity: 0; transform: translateY(8px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    .glow-pulse {
+      animation: pulseGlow 1.6s ease-out both;
+    }
+
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 0 0 0 rgba(230, 150, 60, 0.6), 0 0 18px var(--accent-glow); }
+      60% { box-shadow: 0 0 0 16px rgba(230, 150, 60, 0), 0 0 36px var(--accent-glow); }
+      100% { box-shadow: 0 0 0 3px rgba(230, 150, 60, 0.12), 0 0 26px var(--accent-glow); }
+    }
+
+    .stamp-burst {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: inherit;
+    }
+
+    .stamp {
+      position: absolute;
+      font-size: 40px;
+      color: var(--gold);
+      text-shadow: 0 0 12px rgba(233, 196, 106, 0.8), 0 2px 0 rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      animation: stampPop 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes stampPop {
+      0% { opacity: 0; transform: translate(0, 0) scale(0.4) rotate(-12deg); }
+      35% { opacity: 1; transform: translate(var(--x), var(--y)) scale(1.15) rotate(6deg); }
+      70% { opacity: 1; transform: translate(calc(var(--x) * 0.5), calc(var(--y) * 0.5)) scale(1) rotate(-2deg); }
+      100% { opacity: 0; transform: translate(calc(var(--x) * 1.3), calc(var(--y) * 1.3)) scale(0.9) rotate(-12deg); }
+    }
+
+    .footer {
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .footer a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(243, 239, 227, 0.15);
+    }
+
+    .footer a:hover {
+      color: var(--paper);
+      border-bottom-color: var(--accent);
+    }
+
+    @media (max-width: 520px) {
+      .stage { padding: 16px 12px 40px; }
+      .notebook { padding: 16px 12px; }
+      .item-name { font-size: 22px; }
+      .stat .num { font-size: 14px; }
+      .seal { width: 56px; height: 56px; }
+      .seal .glyph { font-size: 22px; }
+      button.game-btn { padding: 10px 14px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="stage" role="main">
+      <div class="topbar">
+        <a class="brand" href="/" aria-label="トップページに戻る">
+          <span class="brand-mark" aria-hidden="true">&#x2726;</span>
+          <span class="brand-name">Archive of Lost Echoes
+            <small>失われたエコーのアーカイブ</small>
+          </span>
+        </a>
+
+        <div class="stats">
+          <div class="stat">
+            <span class="label">Page</span>
+            <span class="num" id="pageNo">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Kept</span>
+            <span class="num" id="keptCount">0</span>
+          </div>
+          <div class="stat gold">
+            <span class="label">Shine</span>
+            <span class="num" id="shineCount">0</span>
+          </div>
+        </div>
+
+        <a class="home-link" href="/">&#x2190; Home</a>
+      </div>
+
+      <div class="notebook" id="notebook" tabindex="0" aria-live="polite">
+        <div class="entry-meta">
+          <span class="entry-no" id="entryNo">—</span>
+          <span class="entry-date" id="entryDate">—</span>
+        </div>
+
+        <div id="stageZone"></div>
+      </div>
+
+      <div class="footer">
+        <span>鍵は <kbd>Space</kbd> / <kbd>Enter</kbd>、選択は <kbd>1</kbd> <kbd>2</kbd></span>
+        <span id="footerHint">沈黙を聴く人が現れるまで、アーカイブは静かに増え続ける。</span>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const TIER_ORDER = ["common", "uncommon", "rare", "legendary"];
+      const TIER_LABELS = {
+        common: "普通の残響",
+        uncommon: "薄く光る残響",
+        rare: "深い残響",
+        legendary: "神話めく残響"
+      };
+      const TIER_CLASSES = {
+        common: "rarity-common",
+        uncommon: "rarity-uncommon",
+        rare: "rarity-rare",
+        legendary: "rarity-legendary"
+      };
+      const TONE_WEIGHTS = {
+        whisper:  { base: 1,  lightness: 0.9, darkness: 1.15 },
+        murmur:   { base: 1,  lightness: 1.0, darkness: 1.05 },
+        chant:    { base: 1,  lightness: 1.1, darkness: 0.95 },
+        chord:    { base: 1,  lightness: 1.22, darkness: 0.82 },
+        chordStrong: { base: 1, lightness: 1.38, darkness: 0.72 }
+      };
+      const TONE_LABEL = {
+        whisper: "ささやき",
+        murmur: "かすかなざわめき",
+        chant: "低い唱えごえ",
+        chord: "合唱の残り香",
+        chordStrong: "重なるコーラス"
+      };
+      const TONE_DELIVERY = {
+        whisper:  1.0,
+        murmur:   0.92,
+        chant:    0.78,
+        chord:    0.6,
+        chordStrong: 0.42
+      };
+      const TONE_GLYPH = {
+        whisper: "&#x2726;",
+        murmur: "&#x273F;",
+        chant: "&#x262B;",
+        chord: "&#x2739;",
+        chordStrong: "&#x1F3B5;"
+      };
+      const FRAGMENTS = [
+        "雨の後の木製階段で、足が知らないステップを覚えていた",
+        "手紙は届かなかったけど、封じ手が覚えていた",
+        "窓に残った掌の温度が、朝まで離れなかった",
+        "ラジオの雑音の隙間から、励ましを聴いた人がいた",
+        "誰にも話していない約束が、家の埃に混じっていた",
+        "夜行列車の窓越しに、昔の自分を見た気がした",
+        "消したはずのろうそくのにおいが、まだ部屋に残っていた",
+        "冬の路面で、足元だけが静かに記憶していた",
+        "ピアノの隣で、嘘のない沈黙が数秒長く続いた",
+        "古い時計の秒針が、知らない言語で時を刻んでいた",
+        "雨傘の刺さる音に、秘密がひとつだけ混ざっていた",
+        "暖炉の前で、涙よりも息が先にこぼれた",
+        "玄関の隙間に、帰りたくない足音が残っていた",
+        "壁に貼った写真が、季節をひとつ飛び越えていた",
+        "国境なき駅で、名前のない挨拶を交わした",
+        "雪が止んだ瞬間、町の bell が少しだけ遅れた",
+        "歌手の背後で、観客の呼吸が一度だけそろった",
+        "墓地の風が、埋められなかった句を転がしていった",
+        "電話の受話器に置いた掌が、届かなかった声を待っていた",
+        "地図に描かれていない角で、道が短く息をした",
+        "冷めたお茶に、雨の合間の笑いが沈んでいた",
+        "歌詞の無い歌が、歌詞のある日より長く残った",
+        "縁側の段差に、子どもの頃の決心がかかっていた",
+        "劇場の座席に、 applause の後だけ残る静けさがあった",
+        "地下鉄のホームで、未連絡の文面が顔を見せた",
+        "夜明け前の路地に、閉じていない物語が立っていた",
+        "わけあって捨てた短冊が、木の根に絡んでいた",
+        "喫茶店の窓に、去年の自分がまだ張り付いていた",
+        "祭りの後の空き地に、音の名残りだけが残った",
+        "病院の廊下で、名前を呼ばない呼びかけがあった",
+        "閉じたノートの端に、ペン先が知らない言葉をしのんでいた",
+        "港の朝に、船名よりも波の文体が先に覚えていた",
+        "車の屋根をつたう雨に、逃した答えが滑っていた",
+        "古い電話番号を押した指先に、知らない温もりが残った",
+        "霧の層の底で、鳥が方角を失っていた",
+        "着信しなかったメッセに、届いていた声があった",
+        "焼き菓子のにおいの中に、人に話せない幸福があった",
+        "鍵のかかった部屋で、鐘の反響だけが長く住んでいた",
+        "深夜の橋で、寝られぬふたりの足音が交差した",
+        "本棚の隙間から、まだ書きかけの手紙が顔を出した",
+        "洗濯物の間から、春の最初の匂いがもれた",
+        "信号が変わる直前に、誰かの名前を思った",
+        "ちようちよう撮った一枚に、時間が少し足りなかった",
+        "折れた羽根が、帰ろうとする飛行の形をしていた",
+        "商店の軒三尺で、雨が前の話を復唱していた",
+        "星の見えない夜に、星の名残が肌に残っていた",
+        "編集者の赤ペンで、届かなかった理解が消えていた",
+        "展示室の真ん中で、鑑賞者の呼吸だけが作品になっていた",
+        "駅伝の継ぎ手で、受け取られなかったやる気があった",
+        "休日の店先で、閉まっているはずの窓が光っていた",
+        "薪の燃えさしに、去年の冬の歌が埋まっていた",
+        "灰皿の灰の中に、喫煙しない人の想いが混ざっていた",
+        "夜の食卓で、最後の一口だけが静かだった",
+        "昔の夏休みに、帰りたくなかった理由が化石になっていた",
+        "拝観の列で、祈りよりも先に胸が動いていた",
+        "運動場の砂に、秋の開始を告げる秘密があった",
+        "夜間のドアの影に、開いていない未来の足跡があった",
+        "編集室のスペルミスに、意図しない美文が隠れていた",
+        "写真立ての隅に、写らなかった笑顔が差し込まれていた",
+        "高架下の風に、使わなかった歌詞が揺れていた",
+        "閉店直後の棚で、選ばれなかった本が最後の頁を開いていた",
+        "療育の部屋で、言葉にならない言葉が丸く残っていた",
+        "獣医の待合室で、名前を知らない不安が静かに座っていた",
+        "卒業式の券の端に、来なかった日の約束がはさまれていた",
+        "子ども部屋の人形の目が、夜だけ動きそうに見えた",
+        "避難訓練の鐘に、本当の緊急の練習があった",
+        "舗装の影に、昼間には歩けなかった文路があった",
+        "卓球のピンポン球が、試合の外でも会話をしていた",
+        "銀色のスプーンに、共有しなかった味が刻まれていた",
+        "新年のEカードに、送らなかった詫びが残っていた",
+        "旅先の駅伝の水場に、なじまない土地の文体があった",
+        "深夜の書店で、返されなかった本が文庫の目に宿った",
+        "公園のベンチに、話し足りなかった午後の金輪があった",
+        "自転車のベルが、聴こえなかった合図を覚えていた",
+        "暗い取材室で、明かされなかった真実が蛍처럼光っていた",
+        "庭の石の上に、暮れなずむ季節の皺があった",
+        "最終列車の着席に、降りなかった次の駅への遠慮があった",
+        "靴べらの湾曲に、懐かしい足首の重量が残っていた",
+        "朝露だけが記憶していた、露の人格の忘却の速度"
+      ];
+      const FRAGMENT_AURA = [
+        { light: 0.4, dark: 0.3 },
+        { light: 0.35, dark: 0.45 },
+        { light: 0.5, dark: 0.4 },
+        { light: 0.25, dark: 0.55 },
+        { light: 0.6, dark: 0.3 },
+        { light: 0.45, dark: 0.5 },
+        { light: 0.3, dark: 0.6 },
+        { light: 0.55, dark: 0.35 },
+        { light: 0.2, dark: 0.45 },
+        { light: 0.5, dark: 0.55 },
+        { light: 0.35, dark: 0.35 },
+        { light: 0.4, dark: 0.5 },
+        { light: 0.6, dark: 0.45 },
+        { light: 0.25, dark: 0.65 },
+        { light: 0.45, dark: 0.4 }
+      ];
+
+      const STORAGE_KEY = "ale_state_v1";
+
+      let state = {
+        page: 1,
+        keptCount: 0,
+        shineCount: 0,
+        recentRarityCounts: { common: 0, uncommon: 0, rare: 0, legendary: 0 },
+        archiveHeaviness: 0,
+        archive: [],
+        seed: 0
+      };
+
+      let currentEntry = null;
+      let choiceMade = false;
+      let busy = false;
+
+      const $ = (sel) => document.querySelector(sel);
+      const stageZone = $("#stageZone");
+      const pageNoEl = $("#pageNo");
+      const keptCountEl = $("#keptCount");
+      const shineCountEl = $("#shineCount");
+      const entryNoEl = $("#entryNo");
+      const entryDateEl = $("#entryDate");
+      const notebook = $("#notebook");
+      const toastEl = $("#toast");
+      const footerHint = $("#footerHint");
+
+      let toastTimerId = null;
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function pick(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+      }
+
+      function todayLabel(offsetDays) {
+        const d = new Date();
+        d.setDate(d.getDate() + (offsetDays || 0));
+        const months = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+        const yy = d.getFullYear();
+        return `ノート ${yy}年 ${months[d.getMonth()]} ${String(d.getDate()).padStart(2,"0")}日`;
+      }
+
+      function generateCandidate() {
+        const tone = pick(Object.keys(TONE_WEIGHTS));
+        const toneW = TONE_WEIGHTS[tone];
+        const fragment = pick(FRAGMENTS);
+        const aura = pick(FRAGMENT_AURA);
+
+        const lightness = aura.light;
+        const darkness = aura.dark;
+        const weight = toneW.base *
+          (1 + (1 - lightness) * (toneW.darkness - 1) * 0.5) *
+          (1 + (darkness) * (toneW.darkness - 1) * 0.4);
+
+        const delivery = TONE_DELIVERY[tone] * clamp(1.4 - weight, 0.45, 1.4);
+
+        const id = `e-${Math.random().toString(36).slice(2, 10)}`;
+        const etag = Math.random().toString(36).slice(2, 8);
+
+        let shine = (0.55 * lightness) + (0.2 * (1 - darkness)) + (0.25 * clamp(1.5 - weight, 0, 1));
+        shine = clamp(shine, 0, 1);
+
+        const tierRoll = Math.random();
+        let tier;
+        if (tierRoll < (0.46 - weight * 0.05)) {
+          tier = "common";
+        } else if (tierRoll < (0.74 - weight * 0.05)) {
+          tier = "uncommon";
+        } else if (tierRoll < (0.93 - weight * 0.05)) {
+          tier = "rare";
+        } else {
+          tier = "legendary";
+        }
+        tier = TIER_ORDER.includes(tier) ? tier : "common";
+
+        const ctx = makeContext(tone, fragment);
+
+        return {
+          id,
+          text: fragment,
+          tier,
+          weight: Math.round(weight * 1000) / 1000,
+          tone,
+          light: Math.round(lightness * 1000) / 1000,
+          dark: Math.round(darkness * 1000) / 1000,
+          shine: Math.round(shine * 1000) / 1000,
+          delivery: Math.round(delivery * 1000) / 1000,
+          ctx,
+          etag
+        };
+      }
+
+      function makeContext(tone, fragment) {
+        const phrases = {
+          whisper: [
+            "かすかなささやきを取り押さえようとすると、指の隙間から抜けていく",
+            "耳を近づけないと聞こえないが、聞こえた瞬間だけ胸が動く",
+            "誰もいない部屋で、ひとことで終わるメッセージが残っていた"
+          ],
+          murmur: [
+            "ざわめきは遠くで起こっているのに、こちらまで湿気のように届く",
+            "複数の声がひとつにまとまらないまま、しばらくここに留まった",
+            "繰り返さないと忘れそうな、低くて長い調子"
+          ],
+          chant: [
+            "同じ句を何度も唱えているうちに、言葉が軽くなって消えていく",
+            "低い唱えごえは、意図せずに宗教めいた静けさを作っていた",
+            "口に出さなくても、体に残っている語彙があった"
+          ],
+          chord: [
+            "一緒に歌ったわけじゃないのに、少しだけ合わさっている残り香",
+            "複数の線が交わらないまま、同じ空間を共有していた",
+            "和音の最後の一秒だけが、ここに保存されていた"
+          ],
+          chordStrong: [
+            "いろんな人が同時に呼んだわけじゃないのに、重なって聞こえる",
+            "大きな部屋の扉を閉じたあとも、内側で鳴り続けているコーラス",
+            "何層も重なったため、どの音が最初の音だかわからない"
+          ]
+        };
+        const list = phrases[tone] || phrases.murmur;
+        return pick(list);
+      }
+
+      function willItReach() {
+        const candidate = generateCandidate();
+        const heavinessFactor = clamp(state.archiveHeaviness / 40, 0, 0.45);
+        const prob = candidate.delivery * (1 - heavinessFactor);
+        const reached = Math.random() < prob;
+        return { candidate, reached, prob };
+      }
+
+      function nextPage() {
+        if (state.page > 1) {
+          state.archiveHeaviness += 0.15 + Math.random() * 0.12;
+        }
+        state.page += 1;
+        choiceMade = false;
+        currentEntry = null;
+        renderStage();
+        updateHeader();
+        saveState();
+      }
+
+      function renderStage() {
+        stageZone.innerHTML = "";
+        notebook.classList.remove("has-focus");
+
+        if (!currentEntry) {
+          renderPrompt();
+          return;
+        }
+
+        renderEntry(currentEntry);
+      }
+
+      function renderPrompt() {
+        const zone = document.createElement("div");
+        zone.className = "vault-prompt fade-enter";
+        zone.innerHTML = `
+          <strong>届きかけた残響</strong>に手を伸ばしてください。<br>
+          聴けばアーカイブに収められますが、深く聴くほど次の残響は届きにくくなります。<br>
+          <span class="action">
+            <button class="game-btn primary" id="openVault">アーカイブを開く <span class="key">Space</span></button>
+          </span>
+        `;
+        stageZone.appendChild(zone);
+        const openVault = zone.querySelector("#openVault");
+        if (openVault) openVault.addEventListener("click", () => {
+          if (busy) return;
+          attemptDelivery();
+        });
+      }
+
+      function renderEntry(entry) {
+        const toneGlyph = TONE_GLYPH[entry.tone] || "&#x2726;";
+        const tierKey = entry.tier;
+        const tierLabel = TIER_LABELS[tierKey] || "普通の残響";
+        const tierClass = TIER_CLASSES[tierKey] || "rarity-common";
+
+        const shineDesc = entry.shine > 0.7
+          ? "強い輝きを残している"
+          : entry.shine > 0.5
+            ? "やわな光沢を帯びている"
+            : "ほぼ無彩色のまま届いている";
+
+        const zone = document.createElement("div");
+        zone.className = "item fade-enter";
+
+        zone.innerHTML = `
+          <div class="seal" id="seal">
+            <span class="glyph">${toneGlyph}</span>
+          </div>
+          <h2 class="item-name">${escapeHtml(entry.text)}</h2>
+          <span class="item-tag ${tierClass}">${tierLabel}</span>
+          <p class="item-desc">${shineDesc}。測り取ろうとすると、測り取った分だけ少しずつ形が変わる。</p>
+          <p class="item-ctx">${escapeHtml(entry.ctx)}</p>
+
+          <div class="choice-actions">
+            <button class="game-btn primary" id="keep">収める <span class="key">Enter</span></button>
+            <button class="game-btn ghost" id="send">送り返す</button>
+          </div>
+
+          <div class="odds">交付確率 <strong>${Math.round(entry.delivery * 100)}%</strong> · 重さ ${entry.weight.toFixed(2)} · 光 ${entry.light.toFixed(2)} · 影 ${entry.dark.toFixed(2)}</div>
+        `;
+
+        stageZone.appendChild(zone);
+
+        const seal = zone.querySelector("#seal");
+        if (seal) seal.classList.add("glow-pulse");
+
+        const keepBtn = zone.querySelector("#keep");
+        const sendBtn = zone.querySelector("#send");
+        if (keepBtn) keepBtn.addEventListener("click", () => {
+          if (busy || choiceMade) return;
+          makeChoice("keep");
+        });
+        if (sendBtn) sendBtn.addEventListener("click", () => {
+          if (busy || choiceMade) return;
+          makeChoice("send");
+        });
+
+        requestAnimationFrame(() => {
+          notebook.classList.add("has-focus");
+        });
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+
+      function updateHeader() {
+        pageNoEl.textContent = state.page;
+        keptCountEl.textContent = state.keptCount;
+        shineCountEl.textContent = state.shineCount;
+        entryNoEl.textContent = currentEntry ? `残響 #${numSequence(currentEntry.id)}` : "—";
+        entryDateEl.textContent = currentEntry ? todayLabel(-Math.floor(Math.random() * 14)) : "—";
+      }
+
+      function numSequence(id) {
+        let h = 0;
+        for (let i = 0; i < id.length; i++) {
+          h = ((h << 5) - h) + id.charCodeAt(i);
+          h |= 0;
+        }
+        return Math.abs(h) % 5000 + 1;
+      }
+
+      function makeChoice(choice) {
+        if (!currentEntry) return;
+        busy = true;
+        choiceMade = true;
+
+        notebook.style.pointerEvents = "none";
+
+        setTimeout(() => {
+          if (choice === "keep") {
+            state.keptCount += 1;
+            const shineGained = Math.round(currentEntry.shine * 20) / 20;
+            state.shineCount = Math.round((state.shineCount + shineGained) * 20) / 20;
+
+            state.archive.push({
+              id: currentEntry.id,
+              text: currentEntry.text,
+              tier: currentEntry.tier,
+              tone: currentEntry.tone,
+              weight: currentEntry.weight,
+              shine: currentEntry.shine,
+              light: currentEntry.light,
+              dark: currentEntry.dark,
+              ctx: currentEntry.ctx,
+              date: todayLabel()
+            });
+
+            state.recentRarityCounts[currentEntry.tier] = (state.recentRarityCounts[currentEntry.tier] || 0) + 1;
+            if (Object.values(state.recentRarityCounts).reduce((a,b)=>a+b,0) > 18) {
+              const least = TIER_ORDER.reduce((a, t) =>
+                (state.recentRarityCounts[t] < (state.recentRarityCounts[a] || 0) ? t : a), TIER_ORDER[0]);
+              if (state.recentRarityCounts[least] > 0) {
+                state.recentRarityCounts[least] -= 1;
+              }
+            }
+
+            state.archiveHeaviness += currentEntry.weight * 0.25;
+
+            showToast(`収めた · ${TIER_LABELS[currentEntry.tier]}`, "kept");
+            renderArchiveEntryAcknowledge(currentEntry.tier);
+          } else {
+            state.archiveHeaviness = Math.max(0, state.archiveHeaviness - 0.1);
+            showToast("送り返した · 次の残響の芽が少し残る", "lost");
+            renderArchiveEntryAcknowledge(null);
+          }
+
+          state.page += 0;
+          currentEntry = null;
+          choiceMade = false;
+          notebook.style.pointerEvents = "";
+          renderStage();
+          updateHeader();
+          saveState();
+
+          setTimeout(() => {
+            busy = false;
+            if (!currentEntry) {
+              renderPrompt();
+            }
+          }, 320);
+        }, 260);
+      }
+
+      function renderArchiveEntryAcknowledge(tier) {
+        let stampZone = stageZone.querySelector(".stamp-burst");
+        if (!stampZone) {
+          stampZone = document.createElement("div");
+          stampZone.className = "stamp-burst";
+          stampZone.setAttribute("aria-hidden", "true");
+          stageZone.appendChild(stampZone);
+        }
+
+        stampZone.querySelectorAll(".stamp").forEach((el) => el.remove());
+
+        const count = tier ? 5 : 2;
+        for (let i = 0; i < count; i++) {
+          const s = document.createElement("div");
+          s.className = "stamp";
+          s.textContent = pick(["✦", "·", "•", "✧", "「」", "—", "*", "†", "◉", "∴"]);
+          const angle = (i / count) * Math.PI * 2 + Math.random() * 0.6;
+          const dist = 60 + Math.random() * 70;
+          s.style.setProperty("--x", `${Math.cos(angle) * dist}px`);
+          s.style.setProperty("--y", `${Math.sin(angle) * dist}px`);
+          s.style.left = "50%";
+          s.style.top = "50%";
+          s.style.fontSize = (26 + Math.random() * 22) + "px";
+          s.style.animationDelay = (i * 0.08) + "s";
+          stampZone.appendChild(s);
+        }
+
+        setTimeout(() => {
+          stampZone.querySelectorAll(".stamp").forEach((el) => el.remove());
+        }, 1100);
+      }
+
+      function showToast(message, kind) {
+        if (toastTimerId) {
+          clearTimeout(toastTimerId);
+          toastEl.classList.remove("show");
+        }
+        const icon = kind === "kept" ? "✧" : "·";
+        toastEl.innerHTML = `<span class="icon">${icon}</span> ${escapeHtml(message)}`;
+        toastEl.classList.add("show");
+        toastTimerId = setTimeout(() => {
+          toastEl.classList.remove("show");
+          toastTimerId = null;
+        }, 1700);
+      }
+
+      function attemptDelivery() {
+        if (busy) return;
+        busy = true;
+
+        const { candidate, reached } = willItReach();
+
+        if (!reached) {
+          currentEntry = {
+            id: candidate.id,
+            text: candidate.text,
+            tier: "common",
+            weight: candidate.weight,
+            tone: candidate.tone,
+            light: candidate.light,
+            dark: candidate.dark,
+            shine: candidate.shine,
+            delivery: candidate.delivery,
+            ctx: candidate.ctx,
+            etag: candidate.etag,
+            missed: true
+          };
+          renderStage();
+          updateHeader();
+
+          showToast(`届かなかった · ${TIER_LABELS[candidate.tier]}`, "lost");
+          state.archiveHeaviness += candidate.weight * 0.05;
+
+          setTimeout(() => {
+            currentEntry = null;
+            renderStage();
+            renderPrompt();
+            busy = false;
+            saveState();
+          }, 1300);
+          return;
+        }
+
+        currentEntry = candidate;
+        renderStage();
+        updateHeader();
+
+        showToast(`届いた · ${TIER_LABELS[candidate.tier]}`, "kept");
+        renderArchiveEntryAcknowledge(candidate.tier);
+
+        setTimeout(() => {
+          busy = false;
+        }, 420);
+      }
+
+      function onKeyDown(e) {
+        const tag = (e.target.tagName || "").toLowerCase();
+
+        if (tag === "input" || tag === "textarea" || tag === "select") {
+          return;
+        }
+
+        switch (e.key) {
+          case " ":
+          case "Enter": {
+            e.preventDefault();
+            if (!currentEntry && !busy) {
+              attemptDelivery();
+            } else if (currentEntry && !choiceMade && !busy) {
+              makeChoice("keep");
+            }
+            break;
+          }
+          case "1": {
+            if (currentEntry && !choiceMade && !busy) {
+              e.preventDefault();
+              makeChoice("keep");
+            }
+            break;
+          }
+          case "2": {
+            if (currentEntry && !choiceMade && !busy) {
+              e.preventDefault();
+              makeChoice("send");
+            }
+            break;
+          }
+          case "n":
+          case "N": {
+            if (!currentEntry && !busy) {
+              e.preventDefault();
+              nextPage();
+            }
+            break;
+          }
+        }
+      }
+
+      function saveState() {
+        try {
+          const obj = {
+            page: state.page,
+            keptCount: state.keptCount,
+            shineCount: state.shineCount,
+            archiveHeaviness: state.archiveHeaviness,
+            recentRarityCounts: state.recentRarityCounts,
+            archive: state.archive.slice(-60),
+            seed: state.seed
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const obj = JSON.parse(raw);
+          if (!obj || typeof obj !== "object") return;
+          state.page = typeof obj.page === "number" ? obj.page : 1;
+          state.keptCount = typeof obj.keptCount === "number" ? obj.keptCount : 0;
+          state.shineCount = typeof obj.shineCount === "number" ? obj.shineCount : 0;
+          state.archiveHeaviness = typeof obj.archiveHeaviness === "number" ? obj.archiveHeaviness : 0;
+          state.recentRarityCounts = obj.recentRarityCounts && typeof obj.recentRarityCounts === "object"
+            ? obj.recentRarityCounts
+            : { common: 0, uncommon: 0, rare: 0, legendary: 0 };
+          state.archive = Array.isArray(obj.archive) ? obj.archive : [];
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      function updateFooterHint() {
+        const kept = state.keptCount;
+        let msg;
+        if (kept === 0) {
+          msg = "まだ何も収めていない。届きかけた残響が待っている。";
+        } else if (kept === 1) {
+          msg = "最初の残響は、いちばん忘れにくい。";
+        } else if (kept < 5) {
+          msg = `小さな束ができ始めた。アカイブは軽く鳴る。`;
+        } else if (kept < 12) {
+          msg = `ページの影が濃くなった。届きにくい残響もある。`;
+        } else if (kept < 24) {
+          msg = `思想の厚みが増した。次はもっと静かな残響かもしれない。`;
+        } else {
+          msg = `アーカイブはもうひとつの季節になっている。あなたは何を聴いていた？`;
+        }
+        footerHint.textContent = msg;
+      }
+
+      function init() {
+        loadState();
+        updateHeader();
+        updateFooterHint();
+        renderPrompt();
+
+        document.addEventListener("keydown", onKeyDown);
+
+        if (window.MutationObserver) {
+          const observer = new MutationObserver(() => updateFooterHint());
+          if (stageZone) {
+            observer.observe(stageZone, { childList: true, subtree: false, attributes: false });
+          }
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
