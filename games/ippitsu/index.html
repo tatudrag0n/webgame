@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>一筆の旅 - 一筆書きパズル</title>
+  <style>
+    :root {
+      --bg:#0f1220; --card:#1b2033; --ink:#f4f6fb; --muted:#a8b0c7;
+      --accent:#22d3ee; --line:#2c334d; --panel2:#1d2740;
+      --ok:#4fda9a; --bad:#ff6b7a; --path:#ffb703;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; min-height:100vh;
+      font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(900px 420px at 10% -10%, #1a4a6b, transparent 60%),
+        radial-gradient(700px 380px at 100% 0%, #1a2a3a, transparent 55%),
+        var(--bg);
+    }
+    main { max-width:660px; margin:0 auto; padding:26px 16px 70px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    h1 { margin:0; font-size:28px; letter-spacing:0.06em; }
+    h1 small { display:block; font-size:13px; letter-spacing:0.2em; color:var(--accent); font-weight:400; margin-top:4px; }
+    .back { color:var(--muted); text-decoration:none; border-bottom:1px solid var(--line); font-size:14px; white-space:nowrap; }
+    .back:hover { color:var(--ink); border-color:var(--accent); }
+    p.sub { margin:0 0 14px; color:var(--muted); font-size:15px; line-height:1.7; }
+    .hud { display:flex; gap:10px; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 16px; margin-bottom:14px; font-size:14px; }
+    .hud .item { color:var(--muted); }
+    .hud b { color:var(--ink); }
+    .hud b.ok { color:var(--ok); } .hud b.bad { color:var(--bad); }
+    .board-outer { display:flex; justify-content:center; margin-bottom:14px; }
+    .board-frame { position:relative; display:inline-block; line-height:0; touch-action:none; }
+    canvas { display:block; margin:0 auto; border-radius:18px; background:#141a2b; box-shadow:0 24px 60px -26px rgba(0,0,0,.85), 0 0 0 1px var(--line) inset; cursor:pointer; }
+    .overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(6,9,16,.82); backdrop-filter:blur(4px); border-radius:18px; text-align:center; padding:20px; }
+    .overlay[hidden] { display:none; }
+    .overlay h2 { margin:0 0 8px; font-size:26px; letter-spacing:0.05em; }
+    .overlay p { color:var(--muted); margin:0 0 18px; font-size:15px; line-height:1.8; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:10px; }
+    button { font-family:inherit; border:none; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer; color:var(--ink); background:var(--panel2); border:1px solid var(--line); }
+    button:hover { background:#242b45; }
+    button.primary { background:var(--accent); color:#051f2a; }
+    button.primary:hover { opacity:.92; }
+    button.secondary { background:var(--panel2); }
+    button.active { background:var(--ok); color:#051a10; border-color:var(--ok); }
+    .msg { min-height:1.4em; font-size:14px; color:var(--muted); margin:0 0 10px; text-align:center; }
+    .msg.ok { color:var(--ok); } .msg.bad { color:var(--bad); }
+    .rule { font-size:13px; color:var(--muted); line-height:1.75; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-top:8px; }
+    .rule b { color:var(--ink); }
+    .glpanel { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:0 0 12px; }
+    .glow { width:10px; height:10px; border-radius:50%; background:var(--line); border:1px solid var(--ink); }
+    .glow.ok { background:var(--ok); box-shadow:0 0 10px var(--ok); }
+    @media (max-width:560px){ h1{font-size:22px} canvas{max-width:100%; height:auto;} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="back" href="../">← ゲーム一覧へ</a>
+    <h1>一筆の旅<small>Ippitsu no Tabi — One-Stroke Puzzle</small></h1>
+  </header>
+  <p class="sub">すべての辺を、<b>一筆で（辺を二度通らずに）なぞってゴール</b>。点をタップして順に進もう。辺の奇数個持ちの点はスタートかゴールになる。</p>
+
+  <div class="hud">
+    <div class="item">面 <b id="level">1</b></div>
+    <div class="item">進捗 <b id="prog">0 / 0</b></div>
+    <div class="item">経過 <b id="time">0.0s</b></div>
+    <div class="item">ベスト <b id="best">—</b></div>
+  </div>
+
+  <div class="glpanel" id="glPanel"></div>
+  <div class="board-outer">
+    <div class="board-frame">
+      <canvas id="cv" width="600" height="460"></canvas>
+      <div class="overlay" id="ovWin"><div>
+        <h2 id="ovTitle">一筆達成！</h2>
+        <p id="ovText"></p>
+        <button class="primary" id="ovNext">次の面へ</button>
+      </div></div>
+    </div>
+  </div>
+  <div class="msg" id="msg">スタート点を選んでください。</div>
+  <div class="row">
+    <button id="btnUndo" class="secondary">一手戻す</button>
+    <button id="btnRetry" class="secondary">面をやり直す</button>
+    <button id="btnNew" class="primary">新しい手配</button>
+    <button id="btnHint">ヒント</button>
+  </div>
+  <div class="rule">
+    <b>ルール・操作</b><br>
+    1. 点をタップ・クリックして順に進むと、通った辺が消えていく。すべての辺を消せばクリア。<br>
+    2. 使った辺は二度通れない。行き止まりになったら「一手戻す」でやり直せる。<br>
+    3. 辺の本数が奇数の点（光る点）は、スタートかゴールにしかできない。<br>
+    4. 「新しい手配」でいつでも別の問題が生成される。ベストタイムはこのブラウザに保存される。
+  </div>
+</main>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const $ = id=>document.getElementById(id);
+
+let W=600, H=460;
+const PAD = 56;
+
+const LEVELS = [
+  {nodes:6, extra:1}, {nodes:6, extra:2}, {nodes:8, extra:2}, {nodes:8, extra:3},
+  {nodes:10, extra:3}, {nodes:10, extra:4}, {nodes:12, extra:4}, {nodes:12, extra:5},
+  {nodes:15, extra:5}, {nodes:15, extra:7}, {nodes:20, extra:7}, {nodes:20, extra:10}
+];
+let levelIndex = 0;
+let graph = null;          // {nodes:[{x,y}], edges:[{a,b}], adj}
+let usedEdge = new Set();
+let path = [];             // node indices walked
+let startTime = null, timer = null;
+let hovered = -1, selected = -1;
+
+function rngSeed(){ return Date.now() % 1000000; }
+let seed = rngSeed();
+function lcg(){ seed = (seed * 1664525 + 1013904223) >>> 0; return (seed >>> 0) / 0xffffffff; }
+function randInt(n){ return Math.floor(lcg()*n); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=randInt(i+1); [a[i],a[j]]=[a[j],a[i]]; } }
+
+function hasEdge(edges,a,b){
+  for(const e of edges) if((e.a===a && e.b===b)||(e.a===b && e.b===a)) return true;
+  return false;
+}
+function genGraph(n, extra){
+  let attempt = 0;
+  while(true){
+    attempt++;
+    const nodes = [];
+    for(let i=0;i<n;i++) nodes.push({x:PAD+randInt(W-PAD*2), y:PAD+randInt(H-PAD*2)});
+    const edges = [];
+    const order = [...Array(n)].map((_,i)=>i);
+    shuffle(order);
+    for(let i=1;i<n;i++) edges.push({a:order[i-1], b:order[i]});          // spanning path => connected
+    // close cycle sometimes
+    if(lcg()<0.5) edges.push({a:order[n-1], b:order[0]});
+    for(let k=0;k<extra;k++){ const a=randInt(n), b=randInt(n); if(a!==b && !hasEdge(edges,a,b)) edges.push({a,b}); }
+    // parity fix: add edges between odd-degree nodes pairwise
+    let fixed = true;
+    for(let f=0; f<150; f++){
+      const deg = new Array(n).fill(0);
+      for(const e of edges){ deg[e.a]++; deg[e.b]++; }
+      const odd = nodes.map((_,i)=>i).filter(i=>deg[i]%2===1);
+      if(odd.length<=2) break;
+      shuffle(odd);
+      let added=false;
+      for(let i=0;i+1<odd.length;i+=2){ const a=odd[i], b=odd[i+1]; if(!hasEdge(edges,a,b)){ edges.push({a,b}); added=true; } }
+      if(!added) break;
+    }
+    const deg = new Array(n).fill(0);
+    for(const e of edges){ deg[e.a]++; deg[e.b]++; }
+    const odd = nodes.map((_,i)=>i).filter(i=>deg[i]%2===1);
+    if(odd.length<=2){ return {nodes, edges, odd}; }
+    if(attempt>40){ return {nodes, edges, odd}; } // last resort, still playable (may be unsolvable)
+  }
+}
+function buildAdj(graph){
+  const adj = graph.nodes.map(()=>[]);
+  graph.edges.forEach((e,i)=>{ adj[e.a].push({to:e.b,id:i}); adj[e.b].push({to:e.a,id:i}); });
+  return adj;
+}
+function findEulerPath(graph, startNode){
+  const adj = buildAdj(graph);
+  const used = new Array(graph.edges.length).fill(false);
+  const stack=[startNode], nodePath=[];
+  while(stack.length){
+    const u = stack[stack.length-1];
+    const e = adj[u].find(x=>!used[x.id]);
+    if(e!==undefined){ used[e.id]=true; stack.push(e.to); }
+    else { nodePath.push(stack.pop()); }
+  }
+  return nodePath.reverse();
+}
+
+function newGraph(){
+  const spec = LEVELS[levelIndex % LEVELS.length];
+  graph = genGraph(spec.nodes, spec.extra);
+  if(graph.odd.length>2){
+    // retry once with fewer extra edges
+    graph = genGraph(spec.nodes, Math.max(0, spec.extra-1));
+  }
+  usedEdge = new Set();
+  path = [];
+  selected = -1;
+  $('msg').textContent = graph.odd.length===0 ? 'どの点からでもスタートできる' : '光っている点からスタートしてください';
+  $('msg').className='msg';
+  $('prog').textContent = '0 / ' + graph.edges.length;
+  $('level').textContent = levelIndex+1;
+  startTime = Date.now();
+  if(timer) clearInterval(timer);
+  timer = setInterval(()=>{ $('time').textContent = ((Date.now()-startTime)/1000).toFixed(1)+'s'; }, 100);
+  $('ovWin').hidden = true;
+  draw();
+  updateGlow();
+}
+function updateGlow(){
+  const panel=$('glPanel'); panel.innerHTML='';
+  const label = document.createElement('span'); label.textContent='スタート可能点：'; label.style.color=varCss('--muted'); label.style.fontSize='13px'; label.style.alignSelf='center'; panel.appendChild(label);
+  const oddSet = new Set(graph.odd);
+  graph.nodes.forEach((_,i)=>{
+    if(!oddSet.has(i)) return;
+    const d=document.createElement('div'); d.className='glow ok'; d.title='点 '+(i+1); d.onclick=()=>startAt(i); panel.appendChild(d);
+  });
+}
+function varCss(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function startAt(i){
+  if(path.length>0) return;
+  if(graph.odd.length===2 && !graph.odd.includes(i)){ $('msg').textContent='奇数の点からスタートして'; $('msg').className='msg bad'; return; }
+  selected=i; path=[i]; draw(); $('msg').textContent='次の点へ進もう'; $('msg').className='msg';
+}
+
+function tryMove(to){
+  if(path.length===0) return;
+  const from = path[path.length-1];
+  let edgeId=-1;
+  for(let k=0;k<graph.edges.length;k++){ const e=graph.edges[k]; if((e.a===from && e.b===to)||(e.a===to && e.b===from)){ edgeId=k; break; } }
+  if(edgeId<0 || usedEdge.has(edgeId)) return;
+  usedEdge.add(edgeId);
+  path.push(to);
+  selected=to;
+  if(usedEdge.size===graph.edges.length){
+    clearInterval(timer);
+    const time = ((Date.now()-startTime)/1000).toFixed(1);
+    const key='ippitsu_best_'+levelIndex;
+    const old = parseFloat(localStorage.getItem(key)||'Infinity');
+    if(time<old){ localStorage.setItem(key, time); $('msg').textContent='クリア！ 新記録 '+time+'秒！'; $('msg').className='msg ok'; }
+    else $('msg').textContent='クリア！ '+time+'秒（ベスト '+old.toFixed(1)+'秒）';
+    $('best').textContent = (old===Infinity?'—':old.toFixed(1)+'s');
+    $('ovText').textContent = '全辺を一筆でなぞった。 '+time+'秒。';
+    $('ovWin').hidden=false;
+  } else {
+    $('msg').textContent = usedEdge.size+' / '+graph.edges.length + ' 辺';
+  }
+  draw();
+}
+function undo(){
+  if(path.length<=1) return;
+  const to = path.pop();
+  const from = path[path.length-1];
+  for(let k=0;k<graph.edges.length;k++){ const e=graph.edges[k]; if((e.a===from && e.b===to)||(e.a===to && e.b===from)){ usedEdge.delete(k); break; } }
+  selected = from;
+  $('msg').textContent = '一手戻した。 '+(path.length===0?'スタート点を選んでください':'続けて');
+  draw();
+}
+function retry(){
+  usedEdge = new Set(); path=[]; selected=-1;
+  startTime = Date.now();
+  $('msg').textContent = graph.odd.length===0 ? 'どの点からでもスタートできる' : '光っている点からスタートしてください'; $('msg').className='msg';
+  $('ovWin').hidden = true; draw();
+}
+function newHand(){
+  levelIndex++; newGraph();
+}
+
+function showHint(){
+  if(path.length>0){ $('msg').textContent='手を進めてからヒントを'; $('msg').className='msg bad'; return; }
+  const startNode = graph.odd.length===2 ? graph.odd[0] : 0;
+  const nodePath = findEulerPath(graph, startNode);
+  if(nodePath.length < graph.nodes.length){
+    $('msg').textContent='この手配は一筆書きできないかもしれない'; $('msg').className='msg bad'; return;
+  }
+  let idx=0;
+  const intv = setInterval(()=>{
+    if(idx>=nodePath.length-1){ clearInterval(intv); return; }
+    // find edge id between nodePath[idx], nodePath[idx+1]
+    for(let k=0;k<graph.edges.length;k++){ const e=graph.edges[k]; if((e.a===nodePath[idx] && e.b===nodePath[idx+1])||(e.a===nodePath[idx+1] && e.b===nodePath[idx])){ usedEdge.add(k); break; } }
+    path.push(nodePath[idx+1]); selected=nodePath[idx+1]; draw(); idx++;
+  }, 320);
+  setTimeout(()=>{ usedEdge.clear(); path=[]; selected=-1; draw(); $('msg').textContent='ヒント終了。自分で挑戦して'; }, 320*(nodePath.length)+400);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // edges
+  const usedSet = usedEdge;
+  graph.edges.forEach((e,i)=>{
+    const p1=graph.nodes[e.a], p2=graph.nodes[e.b];
+    const used = usedSet.has(i);
+    ctx.beginPath();
+    ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y);
+    ctx.strokeStyle = used ? '#94a3b8' : '#334155';
+    ctx.lineWidth = used ? 3.5 : 2;
+    ctx.lineCap='round'; ctx.stroke();
+    if(path.length>1){
+      // highlight current walking trail (edges between consecutive path nodes that are used)
+    }
+  });
+  // walking trail thicker
+  for(let i=0;i<path.length-1;i++){
+    const a=graph.nodes[path[i]], b=graph.nodes[path[i+1]];
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle='var(--path)' ; ctx.lineWidth=5; ctx.lineCap='round'; ctx.stroke();
+  }
+  // nodes
+  graph.nodes.forEach((p,i)=>{
+    const isStart = path.length===0 && graph.odd.length===2 && !graph.odd.includes(i);
+    const isValidStart = path.length===0 && (graph.odd.length===0 || graph.odd.includes(i));
+    const cur = selected===i;
+    ctx.beginPath(); ctx.arc(p.x,p.y,cur?13:10,0,Math.PI*2);
+    ctx.fillStyle = cur ? '#101828' : (isValidStart ? '#22d3ee' : '#1e293b');
+    ctx.fill();
+    ctx.strokeStyle = isValidStart ? '#22d3ee' : (cur ? '#22d3ee' : '#475569');
+    ctx.lineWidth = cur?3:2; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font = (cur?11:9)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(i+1, p.x, p.y+ (cur?2:0));
+  });
+}
+function normPos(x,y){ const r=cv.getBoundingClientRect(); return {x:x/r.width*W, y:y/r.height*H}; }
+function nearestNode(x,y){ let best=-1, bd=9e9; graph.nodes.forEach((p,i)=>{ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){bd=d; best=i;} }); return bd<26?best:-1; }
+cv.addEventListener('mousedown', e=>{ if(graph){ const {x,y}=normPos(e.offsetX,e.offsetY); const i=nearestNode(x,y); if(i<0) return; if(path.length===0){ startAt(i); } else { tryMove(i); } } });
+cv.addEventListener('touchstart', e=>{ e.preventDefault(); if(graph){ const {x,y}=normPos(e.touches[0].clientX,e.touches[0].clientY); const i=nearestNode(x,y); if(i<0) return; if(path.length===0){ startAt(i); } else { tryMove(i); } } }, {passive:false});
+
+$('btnUndo').onclick=undo;
+$('btnRetry').onclick=retry;
+$('btnNew').onclick=newHand;
+$('btnHint').onclick=showHint;
+$('ovNext').onclick=()=>{ $('ovWin').hidden=true; newHand(); };
+
+window.addEventListener('resize',()=>{
+  const dpr = window.devicePixelRatio||1;
+  const maxW = Math.min(window.innerWidth-32, 640);
+  W = maxW*dpr; H = Math.min(460*dpr, (window.innerHeight-300)*dpr);
+  cv.width=W; cv.height=H; cv.style.width = (W/dpr)+'px'; cv.style.height=(H/dpr)+'px';
+  draw();
+});
+window.dispatchEvent(new Event('resize'));
+newGraph();
+</script>
+</body>
+</html>
