@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>創発の庭 — Emergent Garden</title>
+<style>
+  :root { --bg:#0b0f1a; --panel:#141a2b; --ink:#e8ecf7; --muted:#9aa3bf; --accent:#ff6b6b; --good:#4dd0e1; --wall:#5a6275; --core:#7c4dff; --line:#252c42; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;overflow:hidden}
+  #app{display:grid;grid-template-rows:auto 1fr auto;height:100vh;gap:8px;padding:10px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  h1{font-size:20px;letter-spacing:.05em}
+  .stats{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:14px}
+  .bar{width:140px;height:12px;background:#1f2638;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+  .bar>div{height:100%;background:linear-gradient(90deg,#ff6b6b,#ff9f43);width:100%;transition:width .2s}
+  #canvasWrap{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#080b14}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+  #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,11,20,.75);backdrop-filter:blur(4px);text-align:center;padding:20px}
+  #overlay.hidden{display:none}
+  #overlay h2{font-size:32px;margin-bottom:8px}
+  #overlay p{color:var(--muted);margin-bottom:16px;line-height:1.6}
+  button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:14px}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+  .ctrl{display:flex;align-items:center;gap:6px}
+  .ctrl label{color:var(--muted);white-space:nowrap}
+  input[type=range]{width:100px}
+  select{background:#0b0f1a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px}
+  .tools{display:flex;gap:6px}
+  .tool{padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:#0b0f1a;cursor:pointer;font-size:13px}
+  .tool.active{border-color:var(--accent);background:rgba(255,107,107,.15)}
+  footer{color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Emergent Garden - 創発の庭</h1>
+    <div class="stats">
+      <div>コアHP <div class="bar"><div id="hpBar"></div></div></div>
+      <div>残り時間 <span id="timer">90.0</span>s</div>
+      <div>スコア <span id="score">0</span></div>
+      <div>ウェーブ <span id="wave">0</span></div>
+    </div>
+  </header>
+  <div id="canvasWrap">
+    <canvas id="c"></canvas>
+    <div id="overlay">
+      <div>
+        <h2 id="overlayTitle">創発の庭</h2>
+        <p id="overlayMsg">セル・オートマトンのルールを操り、増殖する感染体からコアを守れ。<br>描いて壁を築き、誕生・生存条件を変えて創発を制御せよ。</p>
+        <button class="primary" id="startBtn">開始</button>
+        <p style="margin-top:12px;font-size:12px">操作: ドラッグで描画 / ツール切替 / スライダーでルール調整</p>
+      </div>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="tools">
+      <button class="tool active" data-tool="erase">消去</button>
+      <button class="tool" data-tool="wall">壁</button>
+      <button class="tool" data-tool="life">種まき</button>
+    </div>
+    <div class="ctrl"><label>速度</label><input type="range" id="speed" min="1" max="5" value="3"></div>
+    <div class="ctrl"><label>誕生 min</label><input type="range" id="bmin" min="0" max="8" value="3"></div>
+    <div class="ctrl"><label>誕生 max</label><input type="range" id="bmax" min="0" max="8" value="3"></div>
+    <div class="ctrl"><label>生存 min</label><input type="range" id="smin" min="0" max="8" value="2"></div>
+    <div class="ctrl"><label>生存 max</label><input type="range" id="smax" min="0" max="8" value="3"></div>
+    <div class="ctrl"><label>壁</label><span id="wallCount">0/60</span></div>
+    <button id="pauseBtn">一時停止</button>
+    <button id="restartBtn">やり直し</button>
+  </div>
+  <footer>Conway型セル・オートマトンを基盤にした創発サバイバル。ルールはあなたが決める。</footer>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+let cols, rows, cellSize;
+function resize(){
+  const r = wrap.getBoundingClientRect();
+  cellSize = Math.max(8, Math.floor(Math.min(r.width/80, r.height/50)));
+  cols = Math.floor(r.width / cellSize);
+  rows = Math.floor(r.height / cellSize);
+  canvas.width = cols*cellSize;
+  canvas.height = rows*cellSize;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let grid = [];
+let nextGrid;
+function initGrid(){
+  grid = Array.from({length:rows}, ()=>Array(cols).fill(0));
+  nextGrid = Array.from({length:rows}, ()=>Array(cols).fill(0));
+  const cx = Math.floor(cols/2), cy = Math.floor(rows/2);
+  for(let y=cy-1;y<=cy+1;y++) for(let x=cx-1;x<=cx+1;x++){
+    if(y>=0&&y<rows&&x>=0&&x<cols) grid[y][x]=3;
+  }
+}
+initGrid();
+
+let running=false, paused=false, gameOver=false, won=false;
+let hp=100, timeLeft=90, score=0, wave=0;
+let lastStep=0, stepInterval=120;
+let lastFrame=performance.now();
+let lastWaveTime=0;
+let wallsUsed=0, wallLimit=60;
+let tool='erase';
+let painting=false;
+let highScore = +localStorage.getItem('emergent_high')||0;
+
+function neighbors(x,y){
+  let n=0;
+  for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+    if(dx===0&&dy===0) continue;
+    const nx=x+dx, ny=y+dy;
+    if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
+    if(grid[ny][nx]===1) n++;
+  }
+  return n;
+}
+
+function stepSim(){
+  const bmin=+document.getElementById('bmin').value;
+  const bmax=+document.getElementById('bmax').value;
+  const smin=+document.getElementById('smin').value;
+  const smax=+document.getElementById('smax').value;
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      const s=grid[y][x];
+      if(s===2||s===3){ nextGrid[y][x]=s; continue; }
+      const n=neighbors(x,y);
+      if(s===1){
+        nextGrid[y][x] = (n>=smin && n<=smax)?1:0;
+      } else {
+        nextGrid[y][x] = (n>=bmin && n<=bmax)?1:0;
+      }
+    }
+  }
+  let dmg=0;
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
+    if(grid[y][x]===3){
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        if(dx===0&&dy===0) continue;
+        const nx=x+dx,ny=y+dy;
+        if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
+        if(grid[ny][nx]===1){ dmg+=0.5; }
+      }
+    }
+  }
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) grid[y][x]=nextGrid[y][x];
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
+    if(grid[y][x]===3){
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        if(dx===0&&dy===0) continue;
+        const nx=x+dx,ny=y+dy;
+        if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
+        if(grid[ny][nx]===1) grid[ny][nx]=0;
+      }
+    }
+  }
+  hp = Math.max(0, hp - dmg);
+  if(hp<=0){ endGame(false); }
+  score += 1;
+}
+
+function spawnWave(){
+  wave++;
+  const edge = Math.floor(Math.random()*4);
+  const count = 6 + Math.floor(wave*0.5);
+  for(let i=0;i<count;i++){
+    let x,y;
+    if(edge===0){ x=Math.floor(Math.random()*cols); y=0; }
+    else if(edge===1){ x=cols-1; y=Math.floor(Math.random()*rows); }
+    else if(edge===2){ x=Math.floor(Math.random()*cols); y=rows-1; }
+    else { x=0; y=Math.floor(Math.random()*rows); }
+    const cx2=x+Math.floor(Math.random()*5)-2;
+    const cy2=y+Math.floor(Math.random()*5)-2;
+    if(cy2>=0&&cy2<rows&&cx2>=0&&cx2<cols && grid[cy2][cx2]===0) grid[cy2][cx2]=1;
+  }
+}
+
+function paintCell(x,y){
+  if(x<0||y<0||x>=cols||y>=rows) return;
+  if(grid[y][x]===3) return;
+  if(tool==='erase'){
+    if(grid[y][x]===2){ wallsUsed=Math.max(0,wallsUsed-1); }
+    grid[y][x]=0;
+  } else if(tool==='wall'){
+    if(grid[y][x]===0){
+      if(wallsUsed<wallLimit){ grid[y][x]=2; wallsUsed++; }
+    } else if(grid[y][x]===2){
+      grid[y][x]=0; wallsUsed=Math.max(0,wallsUsed-1);
+    }
+  } else if(tool==='life'){
+    if(grid[y][x]===0) grid[y][x]=1;
+  }
+}
+
+function getCellFromEvent(e){
+  const rect=canvas.getBoundingClientRect();
+  const cx = (e.touches?e.touches[0].clientX:e.clientX) - rect.left;
+  const cy = (e.touches?e.touches[0].clientY:e.clientY) - rect.top;
+  const x=Math.floor(cx/cellSize), y=Math.floor(cy/cellSize);
+  return {x,y};
+}
+
+canvas.addEventListener('mousedown', e=>{ painting=true; const c=getCellFromEvent(e); paintCell(c.x,c.y); });
+canvas.addEventListener('mousemove', e=>{ if(painting){ const c=getCellFromEvent(e); paintCell(c.x,c.y); } });
+window.addEventListener('mouseup', ()=>painting=false);
+canvas.addEventListener('touchstart', e=>{ e.preventDefault(); painting=true; const c=getCellFromEvent(e); paintCell(c.x,c.y); }, {passive:false});
+canvas.addEventListener('touchmove', e=>{ e.preventDefault(); if(painting){ const c=getCellFromEvent(e); paintCell(c.x,c.y); } }, {passive:false});
+window.addEventListener('touchend', ()=>painting=false);
+
+document.querySelectorAll('.tool').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.tool').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    tool=b.dataset.tool;
+  });
+});
+
+document.getElementById('pauseBtn').addEventListener('click', ()=>{ if(running) paused=!paused; });
+document.getElementById('restartBtn').addEventListener('click', resetGame);
+
+function resetGame(){
+  initGrid();
+  hp=100; timeLeft=90; score=0; wave=0; wallsUsed=0; paused=false; gameOver=false; won=false; running=false;
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('overlayTitle').textContent='創発の庭';
+  document.getElementById('overlayMsg').innerHTML='セル・オートマトンのルールを操り、増殖する感染体からコアを守れ。<br>描いて壁を築き、誕生・生存条件を変えて創発を制御せよ。';
+  document.getElementById('startBtn').textContent='開始';
+}
+
+function startGame(){
+  running=true; paused=false; gameOver=false; won=false;
+  lastStep=performance.now(); lastWaveTime=performance.now(); lastFrame=performance.now();
+  document.getElementById('overlay').classList.add('hidden');
+}
+
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  if(gameOver){ resetGame(); }
+  startGame();
+});
+
+function endGame(win){
+  gameOver=true; running=false; won=win;
+  if(score>highScore){ highScore=score; localStorage.setItem('emergent_high', highScore); }
+  const ov=document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  document.getElementById('overlayTitle').textContent = win?'勝利！':'敗北…';
+  document.getElementById('overlayMsg').innerHTML = (win?'90秒守り切った！':'コアが破壊された。') + '<br>スコア: '+score+' (ベスト: '+highScore+')';
+  document.getElementById('startBtn').textContent='もう一度';
+}
+
+function update(dt){
+  if(!running||paused||gameOver) return;
+  timeLeft -= dt/1000;
+  if(timeLeft<=0){ timeLeft=0; endGame(true); return; }
+  const speed=+document.getElementById('speed').value;
+  stepInterval = 200 - (speed-1)*35;
+  const now=performance.now();
+  if(now-lastStep >= stepInterval){
+    lastStep=now;
+    stepSim();
+  }
+  const waveInterval = Math.max(8000, 18000 - wave*500);
+  if(now-lastWaveTime >= waveInterval){
+    lastWaveTime=now;
+    spawnWave();
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#080b14';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      const s=grid[y][x];
+      if(s===0) continue;
+      if(s===1){
+        ctx.fillStyle='#ff5252';
+        ctx.shadowColor='#ff5252'; ctx.shadowBlur=6;
+        ctx.fillRect(x*cellSize+1,y*cellSize+1,cellSize-2,cellSize-2);
+        ctx.shadowBlur=0;
+      } else if(s===2){
+        ctx.fillStyle='#5a6275';
+        ctx.fillRect(x*cellSize+1,y*cellSize+1,cellSize-2,cellSize-2);
+      } else if(s===3){
+        ctx.fillStyle='#7c4dff';
+        ctx.shadowColor='#7c4dff'; ctx.shadowBlur=10;
+        ctx.fillRect(x*cellSize+1,y*cellSize+1,cellSize-2,cellSize-2);
+        ctx.shadowBlur=0;
+      }
+    }
+  }
+  ctx.strokeStyle='rgba(37,44,66,0.25)';
+  for(let x=0;x<=cols;x++){ ctx.beginPath(); ctx.moveTo(x*cellSize,0); ctx.lineTo(x*cellSize,canvas.height); ctx.stroke(); }
+  for(let y=0;y<=rows;y++){ ctx.beginPath(); ctx.moveTo(0,y*cellSize); ctx.lineTo(canvas.width,y*cellSize); ctx.stroke(); }
+}
+
+function loop(now){
+  const dt = now-lastFrame; lastFrame=now;
+  update(dt);
+  draw();
+  document.getElementById('hpBar').style.width = hp+'%';
+  document.getElementById('timer').textContent = timeLeft.toFixed(1);
+  document.getElementById('score').textContent = score;
+  document.getElementById('wave').textContent = wave;
+  document.getElementById('wallCount').textContent = wallsUsed+'/'+wallLimit;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
