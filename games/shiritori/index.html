@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>しりとりバトル - ことばしりとり</title>
+  <style>
+    :root {
+      --bg:#0f1220; --card:#1b2033; --ink:#f4f6fb; --muted:#a8b0c7;
+      --accent:#b388ff; --line:#2c334d; --panel2:#1d2740;
+      --you:#4fda9a; --cpu:#ff6b7a;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; min-height:100vh;
+      font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(900px 420px at 10% -10%, #4a3a6b, transparent 60%),
+        radial-gradient(700px 380px at 100% 0%, #2a1a3a, transparent 55%),
+        var(--bg);
+    }
+    main { max-width:700px; margin:0 auto; padding:30px 16px 70px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    h1 { margin:0; font-size:30px; letter-spacing:0.06em; }
+    h1 small { display:block; font-size:13px; letter-spacing:0.2em; color:var(--accent); font-weight:400; margin-top:4px; }
+    .back { color:var(--muted); text-decoration:none; border-bottom:1px solid var(--line); font-size:14px; white-space:nowrap; }
+    .back:hover { color:var(--ink); border-color:var(--accent); }
+    p.sub { margin:0 0 16px; color:var(--muted); font-size:15px; line-height:1.7; }
+    .hud { display:flex; gap:10px; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 16px; margin-bottom:16px; font-size:14px; }
+    .hud .item { color:var(--muted); }
+    .hud b { color:var(--ink); }
+    .hud b.you { color:var(--you); } .hud b.cpu { color:var(--cpu); }
+    .turn {
+      display:flex; align-items:center; gap:12px;
+      background:var(--card); border:1px solid var(--line); border-radius:14px;
+      padding:10px 16px; margin-bottom:14px; font-size:15px; font-weight:700;
+    }
+    .turn .tag { width:92px; text-align:center; border-radius:8px; padding:5px 8px; font-size:13px; }
+    .turn .tag.you { background:rgba(79,218,154,.15); color:var(--you); border:1px solid rgba(79,218,154,.35); }
+    .turn .tag.cpu { background:rgba(255,107,122,.15); color:var(--cpu); border:1px solid rgba(255,107,122,.35); }
+    .key { font-size:40px; font-variant-numeric:tabular-nums; letter-spacing:0.12em; margin-left:auto; }
+    .board { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:16px; min-height:180px; }
+    .history { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border-radius:10px; font-size:15px; font-weight:700; border:1px solid var(--line); background:#121729; }
+    .chip.you { border-color:var(--you); color:var(--you); background:rgba(79,218,154,.08); }
+    .chip.cpu { border-color:var(--cpu); color:var(--cpu); background:rgba(255,107,122,.08); }
+    .chip .no { width:18px; height:18px; border-radius:50%; background:var(--line); color:#fff; font-size:12px; display:grid; place-items:center; flex-shrink:0; }
+    .msg { min-height:1.4em; font-size:14px; color:var(--muted); margin:8px 0 4px; }
+    .msg.ok { color:var(--you); } .msg.bad { color:var(--cpu); }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+    input { flex:1; min-width:140px; padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:#121729; color:var(--ink); font-size:16px; font-family:inherit; }
+    input:focus { outline:none; border-color:var(--accent); }
+    button { font-family:inherit; border:none; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:700; cursor:pointer; color:var(--ink); background:var(--panel2); border:1px solid var(--line); }
+    button:hover { background:#242b45; }
+    button.primary { background:var(--accent); color:#1a0833; }
+    button.primary:hover { opacity:.92; }
+    button.secondary { background:var(--panel2); }
+    .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .rule { font-size:13px; color:var(--muted); line-height:1.75; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-top:8px; }
+    .rule b { color:var(--ink); }
+    .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; background:rgba(6,9,16,.88); backdrop-filter:blur(5px); text-align:center; padding:20px; z-index:40; }
+    .overlay[hidden] { display:none; }
+    .overlay h2 { margin:0 0 10px; font-size:28px; letter-spacing:0.05em; }
+    .overlay p { color:var(--muted); margin:0 0 22px; font-size:15px; line-height:1.8; }
+    @media (max-width:560px){ h1{font-size:24px} .key{font-size:30px} .turn{flex-direction:column; align-items:flex-start; gap:6px} .key{margin-left:0} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="back" href="../">← ゲーム一覧へ</a>
+    <h1>しりとりバトル<small>Shiritori Battle</small></h1>
+  </header>
+  <p class="sub">コンピュータと交互にことばしりとり。前の言葉の末尾の文字で始まる言葉を出そう。<b>「ん」で終わると負け</b>。使った言葉は二度使えない。</p>
+
+  <div class="hud">
+    <div class="item">連続 <b class="you" id="streak">0</b> 回</div>
+    <div class="item">ベスト <b id="best">0</b> 回 <span id="bestDiff"></span></div>
+    <div class="item">難易度 <select id="diff"><option value="easy">やさしい</option><option value="normal" selected>ふつう</option><option value="hard">つよい</option></select></div>
+  </div>
+
+  <div class="turn" id="turnBox">
+    <span class="tag you" id="turnTag">あなたの番</span>
+    <span class="key" id="key">—</span>
+  </div>
+
+  <div class="board">
+    <div class="history" id="history"></div>
+  </div>
+  <div class="msg" id="msg">先行・後行は「やり直す」で選べます。</div>
+
+  <div class="controls">
+    <input type="text" id="word" placeholder="言葉を入力" maxlength="24" autocomplete="off">
+    <button class="primary" id="send">出す</button>
+  </div>
+  <div class="row">
+    <button id="undo">一手戻す（自分の手のみ）</button>
+    <button class="secondary" id="restart">やり直す</button>
+    <button class="secondary" id="giveup">あきらめる</button>
+  </div>
+
+  <div class="rule">
+    <b>ルール</b><br>
+    1. 前の言葉の末尾の文字で始まる言葉を入力してください（最初は自由）。<br>
+    2. 内蔵辞書にある言葉のみ有効です。ひらがな・カタカナ・漢字で入力できます。<br>
+    3. 一度使った言葉は使えません。「ん」で終わると即負けです。<br>
+    4. 相手が言葉を出せなくなればあなたの勝ち、あなたが出せなくなれば負けです。
+  </div>
+
+  <div class="overlay" id="overlay"><div>
+    <h2 id="ovTitle">ゲームオーバー</h2>
+    <p id="ovText"></p>
+    <button class="primary" id="ovRestart">もう一度やる</button>
+  </div></div>
+</main>
+<script>
+const DICT = {
+ あ:[{w:'あお',r:'あお'},{w:'あか',r:'あか'},{w:'あき',r:'あき'},{w:'あさ',r:'あさ'},{w:'あたま',r:'あたま'},{w:'あつい',r:'あつい'},{w:'あたらしい',r:'あたらしい'},{w:'あし',r:'あし'},{w:'あそ',r:'あそ'},{w:'あんず',r:'あんず'},{w:'あんぱん',r:'あんぱん'},{w:'あひる',r:'あひる'},{w:'あさひ',r:'あさひ'},{w:'あいさつ',r:'あいさつ'},{w:'あおぞら',r:'あおぞら'},{w:'あかね',r:'あかね'},{w:'あきんど',r:'あきんど'}],
+ い:[{w:'いぬ',r:'いぬ'},{w:'いえ',r:'いえ'},{w:'いき',r:'いき'},{w:'いそぐ',r:'いそぐ'},{w:'いちご',r:'いちご'},{w:'いど',r:'いど'},{w:'いない',r:'いない'},{w:'いま',r:'いま'},{w:'いろ',r:'いろ'},{w:'いす',r:'いす'},{w:'いか',r:'いか'},{w:'いくら',r:'いくら'},{w:'いけばな',r:'いけばな'},{w:'いきおい',r:'いきおい'},{w:'いきがい',r:'いきがい'},{w:'いきびる',r:'いきびる'}],
+ う:[{w:'うみ',r:'うみ'},{w:'うさぎ',r:'うさぎ'},{w:'うた',r:'うた'},{w:'うどん',r:'うどん'},{w:'うで',r:'うで'},{w:'うそ',r:'うそ'},{w:'うしろ',r:'うしろ'},{w:'うえ',r:'うえ'},{w:'うお',r:'うお'},{w:'うぐいす',r:'うぐいす'},{w:'うなぎ',r:'うなぎ'},{w:'うねり',r:'うねり'},{w:'うみねこ',r:'うみねこ'},{w:'うわき',r:'うわき'},{w:'うわさ',r:'うわさ'}],
+ え:[{w:'えき',r:'えき'},{w:'えがお',r:'えがお'},{w:'えいが',r:'えいが'},{w:'えんぴつ',r:'えんぴつ'},{w:'えだ',r:'えだ'},{w:'えんどう',r:'えんどう'},{w:'えんそく',r:'えんそく'},{w:'えごま',r:'えごま'},{w:'えんげき',r:'えんげき'},{w:'えんか',r:'えんか'}],
+ お:[{w:'おとうさん',r:'おとうさん'},{w:'おかあさん',r:'おかあさん'},{w:'おくすり',r:'おくすり'},{w:'おさる',r:'おさる'},{w:'おしり',r:'おしり'},{w:'おもちゃ',r:'おもちゃ'},{w:'おりがみ',r:'おりがみ'},{w:'おんがく',r:'おんがく'},{w:'おにぎり',r:'おにぎり'},{w:'おしろ',r:'おしろ'},{w:'おすし',r:'おすし'},{w:'おてら',r:'おてら'},{w:'おれんじ',r:'おれんじ'},{w:'おうどん',r:'おうどん'},{w:'おうま',r:'おうま'},{w:'おうぎ',r:'おうぎ'},{w:'おばけ',r:'おばけ'},{w:'おかし',r:'おかし'},{w:'おふろ',r:'おふろ'},{w:'おうえん',r:'おうえん'},{w:'おくさま',r:'おくさま'},{w:'おくりもの',r:'おくりもの'}],
+ か:[{w:'かばん',r:'かばん'},{w:'かみ',r:'かみ'},{w:'かぜ',r:'かぜ'},{w:'かさ',r:'かさ'},{w:'かれい',r:'かれい'},{w:'かみなり',r:'かみなり'},{w:'かがみ',r:'かがみ'},{w:'かき',r:'かき'},{w:'かくれんぼ',r:'かくれんぼ'},{w:'かめ',r:'かめ'},{w:'かるた',r:'かるた'},{w:'かんむり',r:'かんむり'},{w:'かんざし',r:'かんざし'},{w:'かご',r:'かご'},{w:'かぞく',r:'かぞく'},{w:'かっぱ',r:'かっぱ'},{w:'かしわ',r:'かしわ'},{w:'かたつむり',r:'かたつむり'},{w:'かたな',r:'かたな'},{w:'かちょう',r:'かちょう'},{w:'かんしゃ',r:'かんしゃ'},{w:'かんがえ',r:'かんがえ'},{w:'かぶと',r:'かぶと'},{w:'かぶき',r:'かぶき'},{w:'かぶとむし',r:'かぶとむし'}],
+ き:[{w:'きつね',r:'きつね'},{w:'きのこ',r:'きのこ'},{w:'きりん',r:'きりん'},{w:'きゅうり',r:'きゅうり'},{w:'きんぎょ',r:'きんぎょ'},{w:'きこえ',r:'きこえ'},{w:'きせき',r:'きせき'},{w:'きちょう',r:'きちょう'},{w:'きっさ',r:'きっさ'},{w:'きぶくろ',r:'きぶくろ'},{w:'きらい',r:'きらい'},{w:'きれい',r:'きれい'},{w:'きゅうか',r:'きゅうか'},{w:'きゅうにん',r:'きゅうにん'}],
+ く:[{w:'くま',r:'くま'},{w:'くつ',r:'くつ'},{w:'くつした',r:'くつした'},{w:'くじら',r:'くじら'},{w:'くしろ',r:'くしろ'},{w:'くさ',r:'くさ'},{w:'くすり',r:'くすり'},{w:'くち',r:'くち'},{w:'くも',r:'くも'},{w:'くらげ',r:'くらげ'},{w:'くらやみ',r:'くらやみ'},{w:'くらす',r:'くらす'},{w:'くふう',r:'くふう'},{w:'くび',r:'くび'},{w:'くぼみ',r:'くぼみ'},{w:'くんれん',r:'くんれん'},{w:'くるま',r:'くるま'},{w:'くるみ',r:'くるみ'},{w:'くつろぐ',r:'くつろぐ'}],
+ け:[{w:'けいさつ',r:'けいさつ'},{w:'けいかく',r:'けいかく'},{w:'けむり',r:'けむり'},{w:'けいき',r:'けいき'},{w:'けっこん',r:'けっこん'},{w:'けっきょく',r:'けっきょく'},{w:'けむたい',r:'けむたい'},{w:'けむし',r:'けむし'},{w:'けんさく',r:'けんさく'},{w:'けんとう',r:'けんとう'},{w:'けんわ',r:'けんわ'}],
+ こ:[{w:'こころ',r:'こころ'},{w:'こひつじ',r:'こひつじ'},{w:'こびと',r:'こびと'},{w:'こども',r:'こども'},{w:'こめ',r:'こめ'},{w:'こおり',r:'こおり'},{w:'こうえん',r:'こうえん'},{w:'こうこう',r:'こうこう'},{w:'こうさぎ',r:'こうさぎ'},{w:'こうさく',r:'こうさく'},{w:'こくご',r:'こくご'},{w:'こくさい',r:'こくさい'},{w:'こけし',r:'こけし'},{w:'こころざし',r:'こころざし'},{w:'ごはん',r:'ごはん'},{w:'ごみ',r:'ごみ'},{w:'こんとん',r:'こんとん'},{w:'こんやは',r:'こんやは'},{w:'こんさつ',r:'こんさつ'},{w:'こんかい',r:'こんかい'},{w:'こころばなし',r:'こころばなし'}],
+ さ:[{w:'さくら',r:'さくら'},{w:'さかな',r:'さかな'},{w:'さかさ',r:'さかさ'},{w:'さけ',r:'さけ'},{w:'さざんか',r:'さざんか'},{w:'さば',r:'さば'},{w:'さら',r:'さら'},{w:'さる',r:'さる'},{w:'さむさ',r:'さむさ'},{w:'さくらんぼ',r:'さくらんぼ'},{w:'さざえ',r:'さざえ'},{w:'さとう',r:'さとう'},{w:'さとうきび',r:'さとうきび'},{w:'さるかに',r:'さるかに'}],
+ し:[{w:'しま',r:'しま'},{w:'しまうま',r:'しまうま'},{w:'しゃぶしゃぶ',r:'しゃぶしゃぶ'},{w:'しゃぼんだま',r:'しゃぼんだま'},{w:'しゃくし',r:'しゃくし'},{w:'ししお',r:'ししお'},{w:'しお',r:'しお'},{w:'しおかぜ',r:'しおかぜ'},{w:'しすい',r:'しすい'},{w:'しずく',r:'しずく'},{w:'しずか',r:'しずか'},{w:'しったい',r:'しったい'},{w:'しゅうかい',r:'しゅうかい'},{w:'しゅくだい',r:'しゅくだい'},{w:'しゅんぶん',r:'しゅんぶん'},{w:'しょくぱん',r:'しょくぱん'},{w:'しょねん',r:'しょねん'},{w:'しごと',r:'しごと'},{w:'しぜん',r:'しぜん'},{w:'しきり',r:'しきり'},{w:'しきじ',r:'しきじ'},{w:'しのび',r:'しのび'}],
+ す:[{w:'すいか',r:'すいか'},{w:'すずめ',r:'すずめ'},{w:'すず',r:'すず'},{w:'すてき',r:'すてき'},{w:'すてっぷ',r:'すてっぷ'},{w:'すてーじ',r:'すてーじ'},{w:'すてーき',r:'すてーき'},{w:'すてーしょん',r:'すてーしょん'},{w:'すばる',r:'すばる'},{w:'すばしっこい',r:'すばしっこい'},{w:'すぷーん',r:'すぷーん'},{w:'すまいる',r:'すまいる'},{w:'すみれ',r:'すみれ'},{w:'すみだ',r:'すみだ'},{w:'すめし',r:'すめし'},{w:'すりこぎ',r:'すりこぎ'},{w:'すなば',r:'すなば'},{w:'すながわ',r:'すながわ'}],
+ せ:[{w:'せかい',r:'せかい'},{w:'せき',r:'せき'},{w:'せつな',r:'せつな'},{w:'せつぞく',r:'せつぞく'},{w:'せつでん',r:'せつでん'},{w:'せなか',r:'せなか'},{w:'せっけん',r:'せっけん'},{w:'せっしゃ',r:'せっしゃ'}],
+ そ:[{w:'そら',r:'そら'},{w:'そらまめ',r:'そらまめ'},{w:'そば',r:'そば'},{w:'そばかす',r:'そばかす'},{w:'そふとくりーむ',r:'そふとくりーむ'},{w:'そうめん',r:'そうめん'},{w:'そだち',r:'そだち'},{w:'そんけい',r:'そんけい'},{w:'そんそう',r:'そんそう'},{w:'そんちょう',r:'そんちょう'},{w:'そらとぶ',r:'そらとぶ'}],
+ た:[{w:'たこ',r:'たこ'},{w:'たいやき',r:'たいやき'},{w:'たいよう',r:'たいよう'},{w:'たいむ',r:'たいむ'},{w:'たかい',r:'たかい'},{w:'たきび',r:'たきび'},{w:'たこやき',r:'たこやき'},{w:'たび',r:'たび'},{w:'たべもの',r:'たべもの'},{w:'たべる',r:'たべる'},{w:'たんけん',r:'たんけん'},{w:'たんぽぽ',r:'たんぽぽ'},{w:'たんちょう',r:'たんちょう'},{w:'たんてい',r:'たんてい'}],
+ ち:[{w:'ちち',r:'ちち'},{w:'ちちおや',r:'ちちおや'},{w:'ちいさい',r:'ちいさい'},{w:'ちいさな',r:'ちいさな'},{w:'ちかてつ',r:'ちかてつ'},{w:'ちきゅう',r:'ちきゅう'},{w:'ちきん',r:'ちきん'},{w:'ちしゃ',r:'ちしゃ'},{w:'ちりめん',r:'ちりめん'},{w:'ちりとり',r:'ちりとり'},{w:'ちりょう',r:'ちりょう'}],
+ つ:[{w:'つき',r:'つき'},{w:'つくえ',r:'つくえ'},{w:'つくし',r:'つくし'},{w:'つきじ',r:'つきじ'},{w:'つきなみ',r:'つきなみ'},{w:'つきよ',r:'つきよ'},{w:'つきかげ',r:'つきかげ'},{w:'つぎ',r:'つぎ'},{w:'つたえる',r:'つたえる'},{w:'つとめる',r:'つとめる'},{w:'つとめ',r:'つとめ'},{w:'つなひき',r:'つなひき'},{w:'つまみ',r:'つまみ'},{w:'つみき',r:'つみき'},{w:'つる',r:'つる'},{w:'つるばみ',r:'つるばみ'},{w:'つるぴか',r:'つるぴか'},{w:'つんどく',r:'つんどく'},{w:'つむぎ',r:'つむぎ'}],
+ て:[{w:'てつだい',r:'てつだい'},{w:'てがみ',r:'てがみ'},{w:'てんき',r:'てんき'},{w:'てんちょう',r:'てんちょう'},{w:'てんぷら',r:'てんぷら'},{w:'てつがく',r:'てつがく'},{w:'てつぼう',r:'てつぼう'},{w:'てつどう',r:'てつどう'},{w:'てつぎ',r:'てつぎ'},{w:'てつや',r:'てつや'},{w:'てきとう',r:'てきとう'},{w:'てきぱき',r:'てきぱき'},{w:'てきせつ',r:'てきせつ'},{w:'てきさい',r:'てきさい'}],
+ と:[{w:'とり',r:'とり'},{w:'とかげ',r:'とかげ'},{w:'とき',r:'とき'},{w:'ときめき',r:'ときめき'},{w:'ときわ',r:'ときわ'},{w:'ところ',r:'ところ'},{w:'とくべつ',r:'とくべつ'},{w:'とくしゅ',r:'とくしゅ'},{w:'とくい',r:'とくい'},{w:'とくに',r:'とくに'},{w:'とくとう',r:'とくとう'},{w:'ところてん',r:'ところてん'},{w:'とんぼ',r:'とんぼ'},{w:'とんかつ',r:'とんかつ'},{w:'とんてき',r:'とんてき'},{w:'とんちょう',r:'とんちょう'}],
+ な:[{w:'なつ',r:'なつ'},{w:'なつかしい',r:'なつかしい'},{w:'なごみ',r:'なごみ'},{w:'なごやか',r:'なごやか'},{w:'なす',r:'なす'},{w:'なべ',r:'なべ'},{w:'ならぶ',r:'ならぶ'},{w:'なみだ',r:'なみだ'},{w:'なやみ',r:'なやみ'},{w:'なりたい',r:'なりたい'},{w:'なれる',r:'なれる'},{w:'なんばん',r:'なんばん'},{w:'なんとう',r:'なんとう'}],
+ に:[{w:'にく',r:'にく'},{w:'にじ',r:'にじ'},{w:'にっぽん',r:'にっぽん'},{w:'にっき',r:'にっき'},{w:'にほん',r:'にほん'},{w:'にほんご',r:'にほんご'},{w:'にわ',r:'にわ'},{w:'にわとり',r:'にわとり'},{w:'にんじん',r:'にんじん'},{w:'にんにく',r:'にんにく'},{w:'にんぎょう',r:'にんぎょう'},{w:'にんげん',r:'にんげん'},{w:'にゅういん',r:'にゅういん'},{w:'にゅうやく',r:'にゅうやく'}],
+ ぬ:[{w:'ぬいぐるみ',r:'ぬいぐるみ'},{w:'ぬれぎぬ',r:'ぬれぎぬ'},{w:'ぬま',r:'ぬま'},{w:'ぬの',r:'ぬの'},{w:'ぬきめ',r:'ぬきめ'},{w:'ぬくもり',r:'ぬくもり'},{w:'ぬか',r:'ぬか'},{w:'ぬけがら',r:'ぬけがら'},{w:'ぬし',r:'ぬし'},{w:'ぬるぬる',r:'ぬるぬる'},{w:'ぬばたま',r:'ぬばたま'}],
+ ね:[{w:'ねこ',r:'ねこ'},{w:'ねずみ',r:'ねずみ'},{w:'ねる',r:'ねる'},{w:'ねごと',r:'ねごと'},{w:'ねんね',r:'ねんね'},{w:'ねんねこ',r:'ねんねこ'},{w:'ねんど',r:'ねんど'},{w:'ねんりん',r:'ねんりん'},{w:'ねこじゃらし',r:'ねこじゃらし'},{w:'ねむい',r:'ねむい'},{w:'ねむり',r:'ねむり'},{w:'ねやま',r:'ねやま'},{w:'ねっか',r:'ねっか'},{w:'ねがき',r:'ねがき'},{w:'ねかい',r:'ねかい'}],
+ の:[{w:'のど',r:'のど'},{w:'のこぎり',r:'のこぎり'},{w:'のむ',r:'のむ'},{w:'のり',r:'のり'},{w:'のりもの',r:'のりもの'},{w:'のろし',r:'のろし'},{w:'のんき',r:'のんき'},{w:'のんびり',r:'のんびり'},{w:'のうみそ',r:'のうみそ'},{w:'のうぎょう',r:'のうぎょう'},{w:'のうげん',r:'のうげん'},{w:'のうそん',r:'のうそん'},{w:'のうしょく',r:'のうしょく'},{w:'のうかん',r:'のうかん'}],
+ は:[{w:'はな',r:'はな'},{w:'はなび',r:'はなび'},{w:'はなびら',r:'はなびら'},{w:'はなやか',r:'はなやか'},{w:'はやく',r:'はやく'},{w:'はし',r:'はし'},{w:'はしる',r:'はしる'},{w:'はしご',r:'はしご'},{w:'はち',r:'はち'},{w:'はちみつ',r:'はちみつ'},{w:'はつか',r:'はつか'},{w:'はくし',r:'はくし'},{w:'はくばく',r:'はくばく'},{w:'はこぶ',r:'はこぶ'},{w:'はこびや',r:'はこびや'},{w:'はさみ',r:'はさみ'},{w:'はさんぶ',r:'はさんぶ'}],
+ ひ:[{w:'ひこうき',r:'ひこうき'},{w:'ひかり',r:'ひかり'},{w:'ひかる',r:'ひかる'},{w:'ひこう',r:'ひこう'}],
+ ふ:[{w:'ふね',r:'ふね'},{w:'ふく',r:'ふく'},{w:'ふくろう',r:'ふくろう'},{w:'ふたご',r:'ふたご'},{w:'ふだ',r:'ふだ'},{w:'ふじ',r:'ふじ'},{w:'ふそう',r:'ふそう'},{w:'ふたば',r:'ふたば'},{w:'ふみ',r:'ふみ'},{w:'ふるさと',r:'ふるさと'},{w:'ふれんず',r:'ふれんず'},{w:'ふうけい',r:'ふうけい'},{w:'ふうとう',r:'ふうとう'},{w:'ふうせん',r:'ふうせん'},{w:'ふうど',r:'ふうど'},{w:'ふかい',r:'ふかい'},{w:'ふくむ',r:'ふくむ'},{w:'ふくざつ',r:'ふくざつ'},{w:'ふぐ',r:'ふぐ'},{w:'ふせ',r:'ふせ'}],
+ へ:[{w:'へび',r:'へび'},{w:'へそ',r:'へそ'},{w:'へだて',r:'へだて'},{w:'へんてつ',r:'へんてつ'},{w:'へんか',r:'へんか'},{w:'へんじ',r:'へんじ'},{w:'へきげん',r:'へきげん'},{w:'へきしょう',r:'へきしょう'}],
+ ほ:[{w:'ほし',r:'ほし'},{w:'ほん',r:'ほん'},{w:'ほんやく',r:'ほんやく'},{w:'ほのか',r:'ほのか'},{w:'ほこら',r:'ほこら'},{w:'ほこる',r:'ほこる'},{w:'ほむら',r:'ほむら'},{w:'ほめる',r:'ほめる'},{w:'ほたる',r:'ほたる'},{w:'ほね',r:'ほね'},{w:'ほのお',r:'ほのお'},{w:'ほうかご',r:'ほうかご'},{w:'ほうき',r:'ほうき'},{w:'ほうそう',r:'ほうそう'},{w:'ほうそく',r:'ほうそく'},{w:'ほうちょう',r:'ほうちょう'},{w:'ほうだい',r:'ほうだい'},{w:'ほうご',r:'ほうご'},{w:'ほうぜい',r:'ほうぜい'}],
+ ま:[{w:'まち',r:'まち'},{w:'まえ',r:'まえ'},{w:'まくら',r:'まくら'},{w:'まんが',r:'まんが'},{w:'まんなか',r:'まんなか'},{w:'まんまる',r:'まんまる'},{w:'ましろ',r:'ましろ'},{w:'まど',r:'まど'},{w:'まゆ',r:'まゆ'},{w:'まつり',r:'まつり'},{w:'まつば',r:'まつば'},{w:'まつたけ',r:'まつたけ'},{w:'まつばら',r:'まつばら'},{w:'まちあわせ',r:'まちあわせ'},{w:'まちがい',r:'まちがい'},{w:'まぶし',r:'まぶし'}],
+ み:[{w:'みず',r:'みず'},{w:'みかん',r:'みかん'},{w:'みかえし',r:'みかえし'},{w:'みがき',r:'みがき'},{w:'みき',r:'みき'},{w:'みくじ',r:'みくじ'},{w:'みさき',r:'みさき'},{w:'みずうみ',r:'みずうみ'},{w:'みずぎ',r:'みずぎ'},{w:'みずたま',r:'みずたま'},{w:'みち',r:'みち'},{w:'みちびき',r:'みちびき'},{w:'みどり',r:'みどり'},{w:'みなもと',r:'みなもと'},{w:'みんぞく',r:'みんぞく'}],
+ む:[{w:'むし',r:'むし'},{w:'むしば',r:'むしば'},{w:'むしろ',r:'むしろ'},{w:'むすめ',r:'むすめ'},{w:'むぎ',r:'むぎ'},{w:'むぎちゃ',r:'むぎちゃ'}],
+ め:[{w:'めし',r:'めし'},{w:'めざめ',r:'めざめ'},{w:'めざまし',r:'めざまし'},{w:'めずらしい',r:'めずらしい'},{w:'めんどう',r:'めんどう'},{w:'めんさい',r:'めんさい'}],
+ も:[{w:'もも',r:'もも'},{w:'もんじゃ',r:'もんじゃ'},{w:'もんじろう',r:'もんじろう'}],
+ や:[{w:'やきとり',r:'やきとり'},{w:'やくそく',r:'やくそく'},{w:'やすみ',r:'やすみ'}],
+ ゆ:[{w:'ゆき',r:'ゆき'},{w:'ゆび',r:'ゆび'},{w:'ゆびわ',r:'ゆびわ'}],
+ よ:[{w:'よる',r:'よる'}],
+ ら:[{w:'らくだ',r:'らくだ'},{w:'らくがき',r:'らくがき'}],
+ り:[{w:'りんご',r:'りんご'}],
+ る:[{w:'るすばん',r:'るすばん'}],
+ れ:[{w:'れいぞうこ',r:'れいぞうこ'}],
+ ろ:[{w:'ろうそく',r:'ろうそく'}],
+ わ:[{w:'わたし',r:'わたし'},{w:'わたあめ',r:'わたあめ'}],
+};
+
+const DIFF_LABEL = {easy:'やさしい', normal:'ふつう', hard:'つよい'};
+const STORAGE_PREFIX='shiritori_best_';
+
+function toHiragana(s){ return s.replace(/[\u30a1-\u30f6]/g, ch=>String.fromCharCode(ch.charCodeAt(0)-96)); }
+function findEntry(text){
+  const t = toHiragana(text.trim());
+  for(const row of Object.values(DICT)) for(const e of row) if(e.w===t || e.r===t) return e;
+  return null;
+}
+function endKanaOf(e){ return e.r.charAt(e.r.length-1); }
+function startKanaOf(e){ return e.r.charAt(0); }
+
+let state = { turn:'you', key:'あ', used:[], streak:0, diff:'normal', firstMove:true, cpuThinking:false, playerFirst:true };
+
+const $ = id=>document.getElementById(id);
+function loadBest(){ try{ return parseInt(localStorage.getItem(STORAGE_PREFIX+state.diff)||'0',10)||0; }catch{return 0;} }
+function saveBest(v){ try{ localStorage.setItem(STORAGE_PREFIX+state.diff, String(v)); }catch{} }
+function render(){
+  $('turnTag').textContent = state.turn==='you'?'あなたの番':'コンピュータの番';
+  $('turnTag').className = 'tag '+(state.turn==='you'?'you':'cpu');
+  $('key').textContent = state.firstMove ? '—（最初は自由）' : state.key;
+  $('streak').textContent = state.streak;
+  $('best').textContent = loadBest();
+  $('bestDiff').textContent = '（'+DIFF_LABEL[state.diff]+'）';
+  $('history').innerHTML = state.used.map((e,i)=>`<div class="chip ${e.who===0?'you':'cpu'}"><span class="no">${i+1}</span>${e.w}</div>`).join('');
+  const disabled = state.turn!== 'you' || state.cpuThinking;
+  $('word').disabled = disabled; $('send').disabled = disabled;
+  if(state.turn==='you' && !state.cpuThinking) $('word').focus();
+}
+function setMsg(text,ok){ const m=$('msg'); m.textContent=text; m.className='msg '+(ok?'ok':'bad'); }
+
+function startNewGame(playerFirst){
+  state.turn = playerFirst?'you':'cpu';
+  state.key='あ'; state.used=[]; state.firstMove=true; state.cpuThinking=false; state.playerFirst=playerFirst;
+  setMsg(playerFirst?'あなたから始めます。':'コンピュータから始めます。');
+  render();
+  if(state.turn==='cpu') setTimeout(cpuTurn,600);
+}
+function endGame(win, text){
+  setMsg(text, win);
+  if(win){ state.streak++; const b=loadBest(); if(state.streak>b) saveBest(state.streak); }
+  else state.streak=0;
+  render();
+  $('overlay').hidden=false;
+  $('ovTitle').textContent = win?'あなたの勝ち！':'コンピュータの勝ち…';
+  $('ovText').textContent = text + (win?' 連続'+state.streak+'回':'');
+}
+$('restart').onclick=()=>startNewGame(state.playerFirst);
+$('ovRestart').onclick=()=>{ $('overlay').hidden=true; startNewGame(state.playerFirst); };
+$('diff').onchange=()=>{ state.diff=$('diff').value; startNewGame(state.playerFirst); };
+$('giveup').onclick=()=>endGame(false,'あきらめました。');
+$('undo').onclick=()=>{
+  if(state.turn!== 'you' || state.used.length===0) return;
+  const last = state.used[state.used.length-1];
+  if(last.who!==0){ setMsg('コンピュータの手は戻せません',false); return; }
+  state.used.pop();
+  state.key = last.keyBefore;
+  state.firstMove = state.used.length===0;
+  setMsg('一手戻しました。');
+  render();
+};
+
+function submitPlayer(){
+  if(state.turn!== 'you') return;
+  const text=$('word').value.trim(); $('word').value='';
+  if(!text){ setMsg('言葉を入力してください',false); return; }
+  const e=findEntry(text);
+  if(!e){ setMsg('辞書にない言葉です',false); return; }
+  if(!state.firstMove && startKanaOf(e)!==state.key){ setMsg('「'+state.key+'」で始まる言葉を出してください',false); return; }
+  if(state.used.some(u=>u.w===e.w)){ setMsg('その言葉はもう使いました',false); return; }
+  const endK = endKanaOf(e);
+  state.used.push({who:0,w:e.w,r:e.r,keyBefore:state.key});
+  if(endK==='ん'){ endGame(false,'「ん」で終わる言葉「'+e.w+'」です。あなたの負け…'); return; }
+  state.key = endK; state.firstMove=false; state.turn='cpu';
+  setMsg('「'+e.w+'」！コンピュータの番です',true);
+  render();
+  setTimeout(cpuTurn,800);
+}
+$('send').onclick=submitPlayer;
+$('word').addEventListener('keydown',ev=>{ if(ev.key==='Enter') submitPlayer(); });
+
+function cpuTurn(){
+  if(state.turn!== 'cpu') return;
+  state.cpuThinking=true; render();
+  setTimeout(()=>{
+    const cands = (DICT[state.key]||[]).filter(e=>!state.used.some(u=>u.w===e.w));
+    if(cands.length===0){ endGame(true,'コンピュータは言葉を出せませんでした。あなたの勝ち！'); return; }
+    const nonN = cands.filter(e=>endKanaOf(e)!=='ん');
+    const pool = nonN.length? nonN : cands;
+    let pick;
+    if(state.diff==='easy'){ pick = pool[Math.floor(Math.random()*pool.length)]; }
+    else if(state.diff==='normal'){ pool.sort((a,b)=>b.r.length-a.r.length); pick = pool[Math.floor(Math.random()*Math.min(5,pool.length))]; }
+    else {
+      pool.sort((a,b)=>{
+        const pa = (DICT[endKanaOf(a)]||[]).length;
+        const pb = (DICT[endKanaOf(b)]||[]).length;
+        if(pa!==pb) return pa-pb;
+        return b.r.length-a.r.length;
+      });
+      pick = pool[Math.floor(Math.random()*Math.min(3,pool.length))];
+    }
+    state.used.push({who:1,w:pick.w,r:pick.r,keyBefore:state.key});
+    const endK = endKanaOf(pick);
+    if(endK==='ん'){ endGame(true,'コンピュータが「ん」で終わる言葉「'+pick.w+'」を出しました。あなたの勝ち！'); return; }
+    state.key=endK; state.firstMove=false; state.turn='you';
+    setMsg('コンピュータ：「'+pick.w+'」。あなたの番です',true);
+    state.cpuThinking=false; render();
+  },700);
+}
+startNewGame(true);
+</script>
+</body>
+</html>
