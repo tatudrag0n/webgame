@@ -14,9 +14,9 @@
   .stats{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:14px}
   .bar{width:140px;height:12px;background:#1f2638;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
   .bar>div{height:100%;background:linear-gradient(90deg,#ff6b6b,#ff9f43);width:100%;transition:width .2s}
-  #canvasWrap{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#080b14}
-  canvas{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
-  #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,11,20,.75);backdrop-filter:blur(4px);text-align:center;padding:20px}
+  #canvasWrap{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#080b14;aspect-ratio:8/5;max-height:calc(100vh - 140px);margin:0 auto;width:100%}
+  canvas{display:block;width:100%;height:100%}
+  #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,11,20,.78);backdrop-filter:blur(4px);text-align:center;padding:20px}
   #overlay.hidden{display:none}
   #overlay h2{font-size:32px;margin-bottom:8px}
   #overlay p{color:var(--muted);margin-bottom:16px;line-height:1.6}
@@ -27,7 +27,6 @@
   .ctrl{display:flex;align-items:center;gap:6px}
   .ctrl label{color:var(--muted);white-space:nowrap}
   input[type=range]{width:100px}
-  select{background:#0b0f1a;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px}
   .tools{display:flex;gap:6px}
   .tool{padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:#0b0f1a;cursor:pointer;font-size:13px}
   .tool.active{border-color:var(--accent);background:rgba(255,107,107,.15)}
@@ -46,7 +45,7 @@
     </div>
   </header>
   <div id="canvasWrap">
-    <canvas id="c"></canvas>
+    <canvas id="c" width="800" height="500"></canvas>
     <div id="overlay">
       <div>
         <h2 id="overlayTitle">創発の庭</h2>
@@ -67,7 +66,7 @@
     <div class="ctrl"><label>誕生 max</label><input type="range" id="bmax" min="0" max="8" value="3"></div>
     <div class="ctrl"><label>生存 min</label><input type="range" id="smin" min="0" max="8" value="2"></div>
     <div class="ctrl"><label>生存 max</label><input type="range" id="smax" min="0" max="8" value="3"></div>
-    <div class="ctrl"><label>壁</label><span id="wallCount">0/60</span></div>
+    <div class="ctrl"><label>壁</label><span id="wallCount">0/80</span></div>
     <button id="pauseBtn">一時停止</button>
     <button id="restartBtn">やり直し</button>
   </div>
@@ -76,27 +75,17 @@
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+const COLS = 80, ROWS = 50;
 const wrap = document.getElementById('canvasWrap');
-let cols, rows, cellSize;
-function resize(){
-  const r = wrap.getBoundingClientRect();
-  cellSize = Math.max(8, Math.floor(Math.min(r.width/80, r.height/50)));
-  cols = Math.floor(r.width / cellSize);
-  rows = Math.floor(r.height / cellSize);
-  canvas.width = cols*cellSize;
-  canvas.height = rows*cellSize;
-}
-resize();
-window.addEventListener('resize', resize);
 
 let grid = [];
 let nextGrid;
 function initGrid(){
-  grid = Array.from({length:rows}, ()=>Array(cols).fill(0));
-  nextGrid = Array.from({length:rows}, ()=>Array(cols).fill(0));
-  const cx = Math.floor(cols/2), cy = Math.floor(rows/2);
+  grid = Array.from({length:ROWS}, ()=>Array(COLS).fill(0));
+  nextGrid = Array.from({length:ROWS}, ()=>Array(COLS).fill(0));
+  const cx = Math.floor(COLS/2), cy = Math.floor(ROWS/2);
   for(let y=cy-1;y<=cy+1;y++) for(let x=cx-1;x<=cx+1;x++){
-    if(y>=0&&y<rows&&x>=0&&x<cols) grid[y][x]=3;
+    if(y>=0&&y<ROWS&&x>=0&&x<COLS) grid[y][x]=3;
   }
 }
 initGrid();
@@ -106,7 +95,7 @@ let hp=100, timeLeft=90, score=0, wave=0;
 let lastStep=0, stepInterval=120;
 let lastFrame=performance.now();
 let lastWaveTime=0;
-let wallsUsed=0, wallLimit=60;
+let wallsUsed=0, wallLimit=80;
 let tool='erase';
 let painting=false;
 let highScore = +localStorage.getItem('emergent_high')||0;
@@ -116,7 +105,7 @@ function neighbors(x,y){
   for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
     if(dx===0&&dy===0) continue;
     const nx=x+dx, ny=y+dy;
-    if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
+    if(nx<0||ny<0||nx>=COLS||ny>=ROWS) continue;
     if(grid[ny][nx]===1) n++;
   }
   return n;
@@ -127,8 +116,8 @@ function stepSim(){
   const bmax=+document.getElementById('bmax').value;
   const smin=+document.getElementById('smin').value;
   const smax=+document.getElementById('smax').value;
-  for(let y=0;y<rows;y++){
-    for(let x=0;x<cols;x++){
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
       const s=grid[y][x];
       if(s===2||s===3){ nextGrid[y][x]=s; continue; }
       const n=neighbors(x,y);
@@ -140,27 +129,21 @@ function stepSim(){
     }
   }
   let dmg=0;
-  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
-    if(grid[y][x]===3){
+  const remove=[];
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    if(grid[y][x]===1){
+      let touchesCore=false;
       for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
         if(dx===0&&dy===0) continue;
         const nx=x+dx,ny=y+dy;
-        if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
-        if(grid[ny][nx]===1){ dmg+=0.5; }
+        if(nx<0||ny<0||nx>=COLS||ny>=ROWS) continue;
+        if(grid[ny][nx]===3){ touchesCore=true; }
       }
+      if(touchesCore){ dmg+=1; remove.push([x,y]); }
     }
   }
-  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) grid[y][x]=nextGrid[y][x];
-  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
-    if(grid[y][x]===3){
-      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-        if(dx===0&&dy===0) continue;
-        const nx=x+dx,ny=y+dy;
-        if(nx<0||ny<0||nx>=cols||ny>=rows) continue;
-        if(grid[ny][nx]===1) grid[ny][nx]=0;
-      }
-    }
-  }
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) grid[y][x]=nextGrid[y][x];
+  for(const [x,y] of remove) grid[y][x]=0;
   hp = Math.max(0, hp - dmg);
   if(hp<=0){ endGame(false); }
   score += 1;
@@ -168,22 +151,24 @@ function stepSim(){
 
 function spawnWave(){
   wave++;
-  const edge = Math.floor(Math.random()*4);
-  const count = 6 + Math.floor(wave*0.5);
-  for(let i=0;i<count;i++){
-    let x,y;
-    if(edge===0){ x=Math.floor(Math.random()*cols); y=0; }
-    else if(edge===1){ x=cols-1; y=Math.floor(Math.random()*rows); }
-    else if(edge===2){ x=Math.floor(Math.random()*cols); y=rows-1; }
-    else { x=0; y=Math.floor(Math.random()*rows); }
-    const cx2=x+Math.floor(Math.random()*5)-2;
-    const cy2=y+Math.floor(Math.random()*5)-2;
-    if(cy2>=0&&cy2<rows&&cx2>=0&&cx2<cols && grid[cy2][cx2]===0) grid[cy2][cx2]=1;
+  const rp = [[1,0],[2,0],[0,1],[1,1],[1,2]];
+  const nSeeds = 2 + Math.floor(wave/3);
+  for(let s=0;s<nSeeds;s++){
+    const edge = Math.floor(Math.random()*4);
+    let bx,by;
+    if(edge===0){ bx=Math.floor(Math.random()*(COLS-4))+2; by=2; }
+    else if(edge===1){ bx=COLS-4; by=Math.floor(Math.random()*(ROWS-4))+2; }
+    else if(edge===2){ bx=Math.floor(Math.random()*(COLS-4))+2; by=ROWS-4; }
+    else { bx=2; by=Math.floor(Math.random()*(ROWS-4))+2; }
+    for(const [dx,dy] of rp){
+      const x=bx+dx, y=by+dy;
+      if(y>=0&&y<ROWS&&x>=0&&x<COLS && grid[y][x]===0) grid[y][x]=1;
+    }
   }
 }
 
 function paintCell(x,y){
-  if(x<0||y<0||x>=cols||y>=rows) return;
+  if(x<0||y<0||x>=COLS||y>=ROWS) return;
   if(grid[y][x]===3) return;
   if(tool==='erase'){
     if(grid[y][x]===2){ wallsUsed=Math.max(0,wallsUsed-1); }
@@ -203,7 +188,8 @@ function getCellFromEvent(e){
   const rect=canvas.getBoundingClientRect();
   const cx = (e.touches?e.touches[0].clientX:e.clientX) - rect.left;
   const cy = (e.touches?e.touches[0].clientY:e.clientY) - rect.top;
-  const x=Math.floor(cx/cellSize), y=Math.floor(cy/cellSize);
+  const x=Math.floor(cx / rect.width * COLS);
+  const y=Math.floor(cy / rect.height * ROWS);
   return {x,y};
 }
 
@@ -266,7 +252,7 @@ function update(dt){
     lastStep=now;
     stepSim();
   }
-  const waveInterval = Math.max(8000, 18000 - wave*500);
+  const waveInterval = Math.max(6000, 15000 - wave*400);
   if(now-lastWaveTime >= waveInterval){
     lastWaveTime=now;
     spawnWave();
@@ -276,29 +262,30 @@ function update(dt){
 function draw(){
   ctx.fillStyle='#080b14';
   ctx.fillRect(0,0,canvas.width,canvas.height);
-  for(let y=0;y<rows;y++){
-    for(let x=0;x<cols;x++){
+  const cw = canvas.width/COLS, ch = canvas.height/ROWS;
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
       const s=grid[y][x];
       if(s===0) continue;
       if(s===1){
         ctx.fillStyle='#ff5252';
         ctx.shadowColor='#ff5252'; ctx.shadowBlur=6;
-        ctx.fillRect(x*cellSize+1,y*cellSize+1,cellSize-2,cellSize-2);
+        ctx.fillRect(x*cw+1,y*ch+1,cw-2,ch-2);
         ctx.shadowBlur=0;
       } else if(s===2){
         ctx.fillStyle='#5a6275';
-        ctx.fillRect(x*cellSize+1,y*cellSize+1,cellSize-2,cellSize-2);
+        ctx.fillRect(x*cw+1,y*ch+1,cw-2,ch-2);
       } else if(s===3){
         ctx.fillStyle='#7c4dff';
         ctx.shadowColor='#7c4dff'; ctx.shadowBlur=10;
-        ctx.fillRect(x*cellSize+1,y*cellSize+1,cellSize-2,cellSize-2);
+        ctx.fillRect(x*cw+1,y*ch+1,cw-2,ch-2);
         ctx.shadowBlur=0;
       }
     }
   }
-  ctx.strokeStyle='rgba(37,44,66,0.25)';
-  for(let x=0;x<=cols;x++){ ctx.beginPath(); ctx.moveTo(x*cellSize,0); ctx.lineTo(x*cellSize,canvas.height); ctx.stroke(); }
-  for(let y=0;y<=rows;y++){ ctx.beginPath(); ctx.moveTo(0,y*cellSize); ctx.lineTo(canvas.width,y*cellSize); ctx.stroke(); }
+  ctx.strokeStyle='rgba(37,44,66,0.2)';
+  for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*cw,0); ctx.lineTo(x*cw,canvas.height); ctx.stroke(); }
+  for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(0,y*ch); ctx.lineTo(canvas.width,y*ch); ctx.stroke(); }
 }
 
 function loop(now){
