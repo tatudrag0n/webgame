@@ -223,6 +223,7 @@ function resetGame(){
 function startGame(){
   running=true; paused=false; gameOver=false; won=false;
   lastStep=performance.now(); lastWaveTime=performance.now(); lastFrame=performance.now();
+  spawnWave();
   document.getElementById('overlay').classList.add('hidden');
 }
 
