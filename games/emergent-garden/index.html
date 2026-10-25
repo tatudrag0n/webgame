@@ -66,7 +66,7 @@
     <div class="ctrl"><label>誕生 max</label><input type="range" id="bmax" min="0" max="8" value="3"></div>
     <div class="ctrl"><label>生存 min</label><input type="range" id="smin" min="0" max="8" value="2"></div>
     <div class="ctrl"><label>生存 max</label><input type="range" id="smax" min="0" max="8" value="3"></div>
-    <div class="ctrl"><label>壁</label><span id="wallCount">0/80</span></div>
+    <div class="ctrl"><label>壁</label><span id="wallCount">0/120</span></div>
     <button id="pauseBtn">一時停止</button>
     <button id="restartBtn">やり直し</button>
   </div>
@@ -95,7 +95,7 @@ let hp=100, timeLeft=90, score=0, wave=0;
 let lastStep=0, stepInterval=120;
 let lastFrame=performance.now();
 let lastWaveTime=0;
-let wallsUsed=0, wallLimit=80;
+let wallsUsed=0, wallLimit=120;
 let tool='erase';
 let painting=false;
 let highScore = +localStorage.getItem('emergent_high')||0;
@@ -152,7 +152,7 @@ function stepSim(){
 function spawnWave(){
   wave++;
   const rp = [[1,0],[2,0],[0,1],[1,1],[1,2]];
-  const nSeeds = 2 + Math.floor(wave/3);
+  const nSeeds = 1 + Math.floor(wave/4);
   for(let s=0;s<nSeeds;s++){
     const edge = Math.floor(Math.random()*4);
     let bx,by;
@@ -223,7 +223,6 @@ function resetGame(){
 function startGame(){
   running=true; paused=false; gameOver=false; won=false;
   lastStep=performance.now(); lastWaveTime=performance.now(); lastFrame=performance.now();
-  spawnWave();
   document.getElementById('overlay').classList.add('hidden');
 }
 
