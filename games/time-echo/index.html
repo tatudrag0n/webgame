@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>タイムエコー — Time Echo</title>
+<style>
+  :root { --bg:#0b0f1a; --panel:#141a2b; --ink:#e8ecf7; --muted:#9aa3bf; --accent:#4dd0e1; --player:#ffb703; --ghost:rgba(77,208,225,.6); --wall:#3a4260; --floor:#1a2033; --door:#7c4dff; --switch:#66bb6a; --exit:#ff6b6b; --spike:#ef5350; --box:#8d6e63; --line:#252c42; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);font-family:"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;overflow:hidden}
+  #app{display:grid;grid-template-columns:1fr 300px;height:100vh;gap:10px;padding:10px}
+  #canvasWrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#080b14;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;image-rendering:pixelated}
+  #side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto}
+  h1{font-size:18px;letter-spacing:.05em}
+  .stat{font-size:13px;color:var(--muted)}
+  .stat b{color:var(--ink)}
+  #recStatus{padding:6px 10px;border-radius:8px;background:#0b0f1a;border:1px solid var(--line);font-size:13px}
+  #recStatus.rec{border-color:#ff6b6b;color:#ff6b6b}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,11,20,.8);backdrop-filter:blur(4px);text-align:center;padding:20px;z-index:10}
+  #overlay.hidden{display:none}
+  #overlay h2{font-size:30px;margin-bottom:8px}
+  #overlay p{color:var(--muted);margin-bottom:14px;line-height:1.6}
+  button{background:var(--accent);color:#0b0f1a;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:14px;font-weight:600}
+  button.secondary{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+  .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;max-width:180px;margin:0 auto}
+  .key{background:#0b0f1a;border:1px solid var(--line);border-radius:6px;padding:6px;text-align:center;font-size:12px}
+  .legend{font-size:12px;color:var(--muted);line-height:1.7}
+  .legend span{display:inline-block;width:14px;height:14px;vertical-align:middle;margin-right:4px;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvasWrap"><canvas id="c" width="640" height="480"></canvas></div>
+  <div id="side">
+    <h1>Time Echo - タイムエコー</h1>
+    <div class="stat">レベル <b id="lvl">1</b> / <b id="lvlTotal">6</b></div>
+    <div class="stat">ゴースト <b id="ghostCount">0</b></div>
+    <div id="recStatus">録画: オフ (Rで開始)</div>
+    <div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:4px">操作</div>
+      <div class="keys">
+        <div></div><div class="key">↑ W</div><div></div>
+        <div class="key">← A</div><div class="key">↓ S</div><div class="key">→ D</div>
+        <div class="key">Space</div><div class="key">待機</div><div></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">R: 録画開始/停止　Esc: リセット　Enter: 次レベル</div>
+    </div>
+    <div class="legend">
+      <div><span style="background:var(--player)"></span>あなた</div>
+      <div><span style="background:var(--ghost)"></span>過去の自分 (ゴースト)</div>
+      <div><span style="background:var(--wall)"></span>壁</div>
+      <div><span style="background:var(--door)"></span>扉 (スイッチで開く)</div>
+      <div><span style="background:var(--switch)"></span>スイッチ</div>
+      <div><span style="background:var(--exit)"></span>出口</div>
+      <div><span style="background:var(--box)"></span>箱 (押せる)</div>
+      <div><span style="background:var(--spike)"></span>棘 (触れるとリセット)</div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6">
+      自分の動きを録画し、過去の自分 (ゴースト) がそれを再生します。ゴーストと協力してスイッチを踏み、扉を開けて出口へ。
+    </div>
+  </div>
+</div>
+<div id="overlay">
+  <div>
+    <h2 id="overlayTitle">Time Echo</h2>
+    <p id="overlayMsg">過去の自分と協力するタイムループパズル。<br>Rキーで自分の動きを録画し、ゴーストを生成。スイッチを踏ませて扉を開けよう。</p>
+    <button id="startBtn">開始</button>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const TILE = 40;
+const COLS = canvas.width / TILE; // 16
+const ROWS = canvas.height / TILE; // 12
+
+// Levels
+const LEVELS = [
+[
+  "################",
+  "#P.............#",
+  "#.############.#",
+  "#.#..........#.#",
+  "#.#.########.#.#",
+  "#.#.#......#.#.#",
+  "#.#.#.####.#.#.#",
+  "#.#.#.#..#.#.#.#",
+  "#.#.#.#S.#.#.#.#",
+  "#.#.#.####.#.#.#",
+  "#.#..........#.E#",
+  "################",
+],
+[
+  "################",
+  "#P.............#",
+  "#.############.#",
+  "#..............#",
+  "####.######.####",
+  "#..............#",
+  "#.############.#",
+  "#..............#",
+  "####.######.####",
+  "#..............#",
+  "#..............E#",
+  "################",
+],
+[
+  "################",
+  "#P........S....#",
+  "#.########.####.#",
+  "#..............#",
+  "#.############.#",
+  "#..............#",
+  "#.############.#",
+  "#..............#",
+  "#.############.#",
+  "#..............#",
+  "#..............E#",
+  "################",
+],
+[
+  "################",
+  "#P.....#.......#",
+  "#.#####.#.#####.#",
+  "#.......#.......#",
+  "#.#####.#.#####.#",
+  "#.......S.......#",
+  "#.#####D#.#####.#",
+  "#.......#.......#",
+  "#.#####.#.#####.#",
+  "#.......#.......#",
+  "#..............E#",
+  "################",
+],
+[
+  "################",
+  "#P.............#",
+  "#.############.#",
+  "#.#..........#.#",
+  "#.#.########.#.#",
+  "#.#.#......#.#.#",
+  "#B.#.#.####.#.#.#",
+  "#.#.#.#..#.#.#.#",
+  "#.#.#.#S.#.#.#.#",
+  "#.#.#.####.#.#.#",
+  "#.#..........#.E#",
+  "################",
+],
+[
+  "################",
+  "#P.............#",
+  "#.############.#",
+  "#.#..........#.#",
+  "#.#.########.#.#",
+  "#.#.#......#.#.#",
+  "#.#.#.####.#.#.#",
+  "#.#.#.#*.#.#.#.#",
+  "#.#.#.#S.#.#.#.#",
+  "#.#.#.####.#.#.#",
+  "#.#..........#.E#",
+  "################",
+],
+];
+
+let levelIndex = 0;
+let grid = [];
+let player = {x:0,y:0};
+let boxes = [];
+let ghosts = []; // {path:[{x,y}], progress, pos:{x,y}, alive}
+let recording = false;
+let recordedMoves = [];
+let recordStart = null;
+let switches = []; // positions
+let doors = []; // positions
+let spikes = [];
+let exitPos = null;
+let gameOver = false;
+let levelWon = false;
+let running = false;
+
+function loadLevel(i){
+  const lvl = LEVELS[i];
+  grid = lvl.map(row=>row.split(''));
+  boxes = [];
+  switches = [];
+  doors = [];
+  spikes = [];
+  ghosts = [];
+  recording = false;
+  recordedMoves = [];
+  recordStart = null;
+  gameOver = false;
+  levelWon = false;
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      const ch = grid[y][x];
+      if(ch==='P'){ player={x,y}; grid[y][x]='.'; }
+      else if(ch==='E'){ exitPos={x,y}; grid[y][x]='.'; }
+      else if(ch==='B'){ boxes.push({x,y}); grid[y][x]='.'; }
+      else if(ch==='S'){ switches.push({x,y}); grid[y][x]='.'; }
+      else if(ch==='D'){ doors.push({x,y}); grid[y][x]='D'; }
+      else if(ch==='*'){ spikes.push({x,y}); grid[y][x]='.'; }
+    }
+  }
+  updateRecStatus();
+  document.getElementById('lvl').textContent = i+1;
+  document.getElementById('lvlTotal').textContent = LEVELS.length;
+  document.getElementById('ghostCount').textContent = ghosts.length;
+}
+
+function isWall(x,y){
+  if(x<0||y<0||x>=COLS||y>=ROWS) return true;
+  const ch = grid[y][x];
+  if(ch==='#') return true;
+  if(ch==='D'){
+    // door open if any switch occupied
+    return !doorOpen();
+  }
+  return false;
+}
+function doorOpen(){
+  // any switch occupied by player or ghost
+  for(const s of switches){
+    if(player.x===s.x && player.y===s.y) return true;
+    for(const g of ghosts){
+      if(g.alive && g.pos.x===s.x && g.pos.y===s.y) return true;
+    }
+  }
+  return false;
+}
+function boxAt(x,y){ return boxes.find(b=>b.x===x&&b.y===y); }
+function spikeAt(x,y){ return spikes.some(s=>s.x===x&&s.y===y); }
+
+function tryMove(actor, dx, dy){
+  // actor: 'player' or ghost object
+  const isPlayer = actor==='player';
+  const obj = isPlayer ? player : actor;
+  const nx = obj.x+dx, ny=obj.y+dy;
+  if(isWall(nx,ny)) return false;
+  // box push
+  const b = boxAt(nx,ny);
+  if(b){
+    const bx2 = nx+dx, by2 = ny+dy;
+    if(isWall(bx2,by2) || boxAt(bx2,by2)) return false;
+    b.x = bx2; b.y = by2;
+  }
+  obj.x = nx; obj.y = ny;
+  return true;
+}
+
+function killPlayer(){
+  // reset level
+  loadLevel(levelIndex);
+}
+
+function checkSpikes(){
+  if(spikeAt(player.x,player.y)){ killPlayer(); return; }
+  for(const g of ghosts){
+    if(g.alive && spikeAt(g.pos.x,g.pos.y)){ g.alive=false; }
+  }
+}
+
+function advanceGhosts(){
+  for(const g of ghosts){
+    if(!g.alive) continue;
+    if(g.progress < g.path.length){
+      const m = g.path[g.progress];
+      if(m.dx!==0 || m.dy!==0){
+        tryMove(g, m.dx, m.dy);
+      }
+      g.progress++;
+      g.pos = {x:g.x?g.x:g.pos.x, y:g.pos.y}; // ensure
+      // update g.pos from g (ghost is obj itself with x,y)
+      g.pos = {x: g.x, y: g.y};
+    }
+  }
+}
+
+// Ghost object uses x,y directly like player. Let's make ghost have x,y.
+// Redefine ghost creation accordingly.
+
+function startRecording(){
+  recording = true;
+  recordedMoves = [];
+  recordStart = {x:player.x, y:player.y};
+  updateRecStatus();
+}
+function stopRecording(){
+  recording = false;
+  if(recordedMoves.length>0){
+    const g = {x:recordStart.x, y:recordStart.y, path:recordedMoves.slice(), progress:0, alive:true, pos:null};
+    g.pos = {x:g.x,y:g.y};
+    ghosts.push(g);
+    document.getElementById('ghostCount').textContent = ghosts.length;
+  }
+  recordedMoves = [];
+  recordStart = null;
+  updateRecStatus();
+}
+function updateRecStatus(){
+  const el = document.getElementById('recStatus');
+  if(recording){
+    el.textContent = '録画中... (Rで停止) 歩数: '+recordedMoves.length;
+    el.classList.add('rec');
+  } else {
+    el.textContent = '録画: オフ (Rで開始)';
+    el.classList.remove('rec');
+  }
+}
+
+function handleMove(dx,dy){
+  if(gameOver||levelWon) return;
+  if(recording){
+    // record and move
+    const ok = tryMove('player', dx, dy);
+    if(ok || (dx===0&&dy===0)){
+      // record even wait
+      recordedMoves.push({dx,dy});
+    }
+    // if move failed, don't record? record wait instead
+    if(!ok && !(dx===0&&dy===0)){
+      // blocked: record nothing? or wait. Let's record wait.
+      // Actually don't advance; just return
+      return;
+    }
+  } else {
+    tryMove('player', dx, dy);
+  }
+  // advance ghosts
+  advanceGhosts();
+  // check spikes
+  checkSpikes();
+  // check win
+  if(player.x===exitPos.x && player.y===exitPos.y){
+    levelWon = true;
+    setTimeout(()=>{},0);
+  }
+  updateRecStatus();
+  draw();
+}
+
+// Ghost advance needs ghost to be an object with x,y and tryMove compatibility.
+// We stored ghost as {x,y,path,progress,alive}. tryMove expects actor 'player' or ghost object, and uses obj.x. For ghost, pass ghost object.
+// But advanceGhosts calls tryMove(g, ...). tryMove checks actor==='player'; else obj=actor. Good. But tryMove uses obj.x mutation. Good.
+// However, in advanceGhosts I need to update g.pos. Let's simplify: ghost has x,y; no separate pos. Use g.x,g.y directly.
+
+// Fix advanceGhosts:
+function advanceGhostsFixed(){
+  for(const g of ghosts){
+    if(!g.alive) continue;
+    if(g.progress < g.path.length){
+      const m = g.path[g.progress];
+      tryMove(g, m.dx, m.dy);
+      g.progress++;
+    }
+  }
+}
+// Replace the earlier advanceGhosts by reassigning
+advanceGhosts = advanceGhostsFixed;
+
+function draw(){
+  ctx.fillStyle='#080b14';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      const ch = grid[y][x];
+      let color = '#1a2033';
+      if(ch==='#') color='#3a4260';
+      else if(ch==='D') color = doorOpen()?'#2a1f4d':'#7c4dff';
+      ctx.fillStyle=color;
+      ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+      // grid line
+      ctx.strokeStyle='rgba(255,255,255,0.04)';
+      ctx.strokeRect(x*TILE,y*TILE,TILE,TILE);
+    }
+  }
+  // spikes
+  for(const s of spikes){
+    ctx.fillStyle='#ef5350';
+    ctx.beginPath();
+    ctx.moveTo(s.x*TILE+TILE/2, s.y*TILE+4);
+    ctx.lineTo(s.x*TILE+TILE-4, s.y*TILE+TILE-4);
+    ctx.lineTo(s.x*TILE+4, s.y*TILE+TILE-4);
+    ctx.fill();
+  }
+  // switches
+  for(const s of switches){
+    ctx.fillStyle = '#66bb6a';
+    ctx.fillRect(s.x*TILE+8, s.y*TILE+8, TILE-16, TILE-16);
+  }
+  // boxes
+  for(const b of boxes){
+    ctx.fillStyle='#8d6e63';
+    ctx.fillRect(b.x*TILE+4, b.y*TILE+4, TILE-8, TILE-8);
+    ctx.strokeStyle='#a1887f';
+    ctx.strokeRect(b.x*TILE+4, b.y*TILE+4, TILE-8, TILE-8);
+  }
+  // exit
+  if(exitPos){
+    ctx.fillStyle='#ff6b6b';
+    ctx.beginPath();
+    ctx.arc(exitPos.x*TILE+TILE/2, exitPos.y*TILE+TILE/2, TILE/3, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // ghosts
+  for(const g of ghosts){
+    if(!g.alive) continue;
+    ctx.fillStyle='rgba(77,208,225,0.5)';
+    ctx.beginPath();
+    ctx.arc(g.x*TILE+TILE/2, g.y*TILE+TILE/2, TILE/3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle='rgba(77,208,225,0.9)';
+    ctx.stroke();
+  }
+  // player
+  ctx.fillStyle='#ffb703';
+  ctx.beginPath();
+  ctx.arc(player.x*TILE+TILE/2, player.y*TILE+TILE/2, TILE/3, 0, Math.PI*2);
+  ctx.fill();
+  // recording indicator
+  if(recording){
+    ctx.strokeStyle='#ff6b6b';
+    ctx.lineWidth=3;
+    ctx.strokeRect(player.x*TILE+2, player.y*TILE+2, TILE-4, TILE-4);
+    ctx.lineWidth=1;
+  }
+}
+
+// Input
+const keyMap = {
+  'ArrowUp':'up','w':'up','W':'up',
+  'ArrowDown':'down','s':'down','S':'down',
+  'ArrowLeft':'left','a':'left','A':'left',
+  'ArrowRight':'right','d':'right','D':'right',
+};
+window.addEventListener('keydown', e=>{
+  if(e.key==='r'||e.key==='R'){
+    if(recording) stopRecording(); else startRecording();
+    e.preventDefault(); return;
+  }
+  if(e.key==='Escape'){ loadLevel(levelIndex); draw(); e.preventDefault(); return; }
+  if(e.key==='Enter'){
+    if(levelWon){
+      if(levelIndex < LEVELS.length-1){ levelIndex++; loadLevel(levelIndex); }
+      else { showOverlay('クリア！','全レベルクリア。おめでとう！'); }
+    }
+    e.preventDefault(); return;
+  }
+  const dir = keyMap[e.key];
+  if(dir){
+    e.preventDefault();
+    let dx=0,dy=0;
+    if(dir==='up') dy=-1;
+    if(dir==='down') dy=1;
+    if(dir==='left') dx=-1;
+    if(dir==='right') dx=1;
+    if(e.key===' '){ dx=0;dy=0; }
+    handleMove(dx,dy);
+  }
+  if(e.key===' '){
+    e.preventDefault();
+    handleMove(0,0);
+  }
+});
+
+function showOverlay(title,msg){
+  document.getElementById('overlayTitle').textContent=title;
+  document.getElementById('overlayMsg').textContent=msg;
+  document.getElementById('overlay').classList.remove('hidden');
+}
+
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  document.getElementById('overlay').classList.add('hidden');
+  running=true;
+  loadLevel(0);
+  levelIndex=0;
+  draw();
+});
+
+// initial
+draw();
+</script>
+</body>
+</html>
