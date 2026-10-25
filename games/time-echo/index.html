@@ -178,6 +178,8 @@ let exitPos = null;
 let gameOver = false;
 let levelWon = false;
 let running = false;
+let awaitingNext = false;
+let gameStarted = false;
 
 function loadLevel(i){
   const lvl = LEVELS[i];
@@ -224,7 +226,7 @@ function doorOpen(){
   for(const s of switches){
     if(player.x===s.x && player.y===s.y) return true;
     for(const g of ghosts){
-      if(g.alive && g.pos.x===s.x && g.pos.y===s.y) return true;
+      if(g.alive && g.x===s.x && g.y===s.y) return true;
     }
   }
   return false;
@@ -334,7 +336,9 @@ function handleMove(dx,dy){
   // check win
   if(player.x===exitPos.x && player.y===exitPos.y){
     levelWon = true;
-    setTimeout(()=>{},0);
+    awaitingNext = true;
+    showOverlay('クリア！', (levelIndex < LEVELS.length-1) ? 'Enter またはボタンで次レベルへ' : '全クリア！ Enterで最初から');
+    document.getElementById('startBtn').textContent = (levelIndex < LEVELS.length-1) ? '次へ' : '最初から';
   }
   updateRecStatus();
   draw();
@@ -441,9 +445,8 @@ window.addEventListener('keydown', e=>{
   }
   if(e.key==='Escape'){ loadLevel(levelIndex); draw(); e.preventDefault(); return; }
   if(e.key==='Enter'){
-    if(levelWon){
-      if(levelIndex < LEVELS.length-1){ levelIndex++; loadLevel(levelIndex); }
-      else { showOverlay('クリア！','全レベルクリア。おめでとう！'); }
+    if(awaitingNext){
+      document.getElementById('startBtn').click();
     }
     e.preventDefault(); return;
   }
@@ -472,10 +475,16 @@ function showOverlay(title,msg){
 
 document.getElementById('startBtn').addEventListener('click', ()=>{
   document.getElementById('overlay').classList.add('hidden');
-  running=true;
-  loadLevel(0);
-  levelIndex=0;
-  draw();
+  if(!gameStarted){
+    gameStarted=true; running=true; levelIndex=0; loadLevel(0); draw(); return;
+  }
+  if(awaitingNext){
+    awaitingNext=false;
+    if(levelIndex < LEVELS.length-1){ levelIndex++; loadLevel(levelIndex); }
+    else { levelIndex=0; loadLevel(0); }
+    levelWon=false;
+    draw();
+  }
 });
 
 // initial
